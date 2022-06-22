@@ -43,7 +43,7 @@
     "browserify": "17.0.0",
     "escodegen": "^2.0.0",
     "glob": "^8.0.3",
-    "gulp": "3.9.1",
+    "gulp": "4.0.2",
     "gulp-browserify": "~0.5.1",
     "gulp-clean": "~0.4.0",
     "gulp-jasmine": "^4.0.0",
