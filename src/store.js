@@ -850,7 +850,7 @@ Store.prototype.close = function(cb) {
 /**
  * Version of the store
  */
-Store.VERSION = "0.9.18-alpha.3";
+Store.VERSION = "0.9.18-alpha.4";
 
 /**
  * Create a new RDFStore instance that will be
