@@ -2810,10 +2810,10 @@ json-stable-stringify-without-jsonify@^1.0.1:
   resolved "https://registry.yarnpkg.com/json-stable-stringify-without-jsonify/-/json-stable-stringify-without-jsonify-1.0.1.tgz#9db7b59496ad3f3cfef30a75142d2d930ad72651"
   integrity sha512-Bdboy+l7tA3OGW6FjyFHWkP5LuByj1Tk33Ljyq0axyzdk9//JSi2u3fP1QSmd1KNwq6VOKYGlAu87CisVir6Pw==
 
-jsonld@^6.0.0:
-  version "6.0.0"
-  resolved "https://registry.yarnpkg.com/jsonld/-/jsonld-6.0.0.tgz#560a8a871dce72aba5d4c6b08356438d863d62fb"
-  integrity sha512-1SkN2RXhMCTCSkX+bzHvr9ycM2HTmjWyV41hn2xG7k6BqlCgRjw0zHmuqfphjBRPqi1gKMIqgBCe/0RZMcWrAA==
+jsonld@^8.0.0:
+  version "8.0.0"
+  resolved "https://registry.yarnpkg.com/jsonld/-/jsonld-8.0.0.tgz#38438ee688fcd1edda5d8d48ac0e773a25a9b027"
+  integrity sha512-GI9zhn9xm6cFzkWJXsB5js+PHFqwJNJs3zRgi1N9VLfMk3W/D71PHvA72MEm3WwWZTByDn7tb6/Byr3NJW9GEA==
   dependencies:
     "@digitalbazaar/http-client" "^3.2.0"
     canonicalize "^1.0.1"
