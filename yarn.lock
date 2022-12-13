@@ -3692,9 +3692,9 @@ split-string@^3.0.1, split-string@^3.0.2:
     extend-shallow "^3.0.0"
 
 sqlite3@>=2.1.1, sqlite3@^5.0.8:
-  version "5.1.0"
-  resolved "https://registry.yarnpkg.com/sqlite3/-/sqlite3-5.1.0.tgz#d82bd1f85668453904ef9a6f0a6b13c70b53c837"
-  integrity sha512-/cZl9DfeSQMWR5g9SdluHGt+YL3URetjtvgv1XPQx7rzXOFdZx30EnZj709wCEIznjjzZdo5Lmt5GUeNyGgUbQ==
+  version "5.1.4"
+  resolved "https://registry.yarnpkg.com/sqlite3/-/sqlite3-5.1.4.tgz#35f83d368963168b324ad2f0fffce09f3b8723a7"
+  integrity sha512-i0UlWAzPlzX3B5XP2cYuhWQJsTtlMD6obOa1PgeEQ4DHEXUuyJkgv50I3isqZAP5oFc2T8OFvakmDh2W6I+YpA==
   dependencies:
     "@mapbox/node-pre-gyp" "^1.0.0"
     node-addon-api "^4.2.0"
