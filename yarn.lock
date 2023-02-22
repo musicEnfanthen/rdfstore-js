@@ -1533,10 +1533,10 @@ minimatch@^5.0.1:
   dependencies:
     brace-expansion "^2.0.1"
 
-minimatch@^6.1.6:
-  version "6.1.6"
-  resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-6.1.6.tgz#5384bb324be5b5dae12a567c03d22908febd0ddd"
-  integrity sha512-6bR3UIeh/DF8+p6A9Spyuy67ShOq42rOkHWi7eUe3Ua99Zo5lZfGC6lJJWkeoK4k9jQFT3Pl7czhTXimG2XheA==
+minimatch@^7.0.1:
+  version "7.0.1"
+  resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-7.0.1.tgz#346583590577d192cab9b88514f1832b9509d737"
+  integrity sha512-C4CrOG1kAnaIxQPTAoiAmZCR2up1yjDdseGpr8UCUw5UqBUao5E1q2bOv0cAX0+y8MUxcyrvkTsoj5DvGRnvdQ==
   dependencies:
     brace-expansion "^2.0.1"
 
