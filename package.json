@@ -54,7 +54,7 @@
     "jasmine-reporters": "^2.5.2",
     "lodash": "^4.17.21",
     "minify": "^9.2.0",
-    "mkdirp": "^2.1.5",
+    "mkdirp": "^3.0.1",
     "pegjs": "^0.10.0"
   },
   "resolutions": {
