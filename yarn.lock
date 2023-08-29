@@ -104,6 +104,11 @@
   resolved "https://registry.yarnpkg.com/@pkgjs/parseargs/-/parseargs-0.11.0.tgz#a77ea742fab25775145434eb1d2328cf5013ac33"
   integrity sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==
 
+"@putout/minify@^2.0.0":
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/@putout/minify/-/minify-2.0.0.tgz#3afef300800d95ccf65886aef5d6ec00b5cd8c83"
+  integrity sha512-cwpdeIm8+4868aiwH69xR95CaB9RfoKDu4uKWddK2IA6BNCenvX9LaSpHgvgwn2J7v27QTQQkeXWQMWCcJTJyw==
+
 "@tootallnate/once@1":
   version "1.1.2"
   resolved "https://registry.yarnpkg.com/@tootallnate/once/-/once-1.1.2.tgz#ccb91445360179a04e7fe6aff78c00ffc1eeaf82"
@@ -1535,11 +1540,12 @@ miller-rabin@^4.0.0:
     bn.js "^4.0.0"
     brorand "^1.0.1"
 
-minify@^9.2.0:
-  version "9.2.0"
-  resolved "https://registry.yarnpkg.com/minify/-/minify-9.2.0.tgz#4790e94d6c41d53f8b1929468ea759fb5773ef9e"
-  integrity sha512-dfVx8j27TIZy2EE/nVMAhTVmUo6tdO4gYbKXaCYPUmpqWN2QJBgQtPfofsoA658L3Ee7e5OcyFIncJRgFtZcqQ==
+minify@^10.5.0:
+  version "10.5.0"
+  resolved "https://registry.yarnpkg.com/minify/-/minify-10.5.0.tgz#90cb377781991a611f67afd6de924de63ab9bce7"
+  integrity sha512-3w3McBswVw5+fyRpPNtz5UtdhC5eCXHQ+EuXrJ3lJXgybahLN0wU4tlULdU35DR/FKsBPXA0zCuaEif7+hc/Yw==
   dependencies:
+    "@putout/minify" "^2.0.0"
     clean-css "^5.0.1"
     css-b64-images "~0.2.5"
     debug "^4.1.0"
@@ -1547,7 +1553,6 @@ minify@^9.2.0:
     html-minifier-terser "^7.1.0"
     readjson "^2.2.2"
     simport "^1.2.0"
-    terser "^5.3.2"
     try-catch "^3.0.0"
     try-to-catch "^3.0.0"
 
@@ -2279,6 +2284,7 @@ streamsearch@^1.1.0:
   integrity sha512-Mcc5wHehp9aXz1ax6bZUyY5afg9u2rv5cqQI3mRrYkGC8rW2hM02jWuwjtL++LS5qinSyhj2QfLyNsuc+VsExg==
 
 "string-width-cjs@npm:string-width@^4.2.0", "string-width@^1.0.2 || 2 || 3 || 4", string-width@^4.1.0, string-width@^4.2.3:
+  name string-width-cjs
   version "4.2.3"
   resolved "https://registry.yarnpkg.com/string-width/-/string-width-4.2.3.tgz#269c7117d27b05ad2e536830a8ec895ef9c6d010"
   integrity sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==
@@ -2329,6 +2335,7 @@ string_decoder@~1.1.1:
     safe-buffer "~5.1.0"
 
 "strip-ansi-cjs@npm:strip-ansi@^6.0.1", strip-ansi@^6.0.0, strip-ansi@^6.0.1:
+  name strip-ansi-cjs
   version "6.0.1"
   resolved "https://registry.yarnpkg.com/strip-ansi/-/strip-ansi-6.0.1.tgz#9e26c63d30f53443e9489495b2105d37b67a85d9"
   integrity sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==
@@ -2373,7 +2380,7 @@ tar@^6.0.2, tar@^6.1.11, tar@^6.1.2:
     mkdirp "^1.0.3"
     yallist "^4.0.0"
 
-terser@^5.15.1, terser@^5.3.2:
+terser@^5.15.1:
   version "5.16.1"
   resolved "https://registry.yarnpkg.com/terser/-/terser-5.16.1.tgz#5af3bc3d0f24241c7fb2024199d5c461a1075880"
   integrity sha512-xvQfyfA1ayT0qdK47zskQgRZeWLoOQ8JQ6mIgRGVNwZKdQMU+5FkCBjmv4QjcrTzyZquRw2FVtlJSRUmMKQslw==
