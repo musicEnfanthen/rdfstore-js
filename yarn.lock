@@ -145,6 +145,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@putout/minify@npm:^3.0.0":
+  version: 3.13.0
+  resolution: "@putout/minify@npm:3.13.0"
+  checksum: 10c0/1b71ea5975725a300a8e140db05d2dffea9cf26438f94591009438973e2ba7ae74206741b174f8fd8f62429cb2fc6877c613ece649e53d987ced057852890656
+  languageName: node
+  linkType: hard
+
 "@tootallnate/once@npm:1":
   version: 1.1.2
   resolution: "@tootallnate/once@npm:1.1.2"
@@ -1247,13 +1254,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"find-up@npm:^6.1.0":
-  version: 6.3.0
-  resolution: "find-up@npm:6.3.0"
+"find-up@npm:^7.0.0":
+  version: 7.0.0
+  resolution: "find-up@npm:7.0.0"
   dependencies:
-    locate-path: "npm:^7.1.0"
+    locate-path: "npm:^7.2.0"
     path-exists: "npm:^5.0.0"
-  checksum: 10c0/07e0314362d316b2b13f7f11ea4692d5191e718ca3f7264110127520f3347996349bf9e16805abae3e196805814bc66ef4bff2b8904dc4a6476085fc9b0eba07
+    unicorn-magic: "npm:^0.1.0"
+  checksum: 10c0/e6ee3e6154560bc0ab3bc3b7d1348b31513f9bdf49a5dd2e952495427d559fa48cdf33953e85a309a323898b43fa1bfbc8b80c880dfc16068384783034030008
   languageName: node
   linkType: hard
 
@@ -1909,7 +1917,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"locate-path@npm:^7.1.0":
+"locate-path@npm:^7.2.0":
   version: 7.2.0
   resolution: "locate-path@npm:7.2.0"
   dependencies:
@@ -2031,23 +2039,24 @@ __metadata:
   languageName: node
   linkType: hard
 
-"minify@npm:^9.2.0":
-  version: 9.2.0
-  resolution: "minify@npm:9.2.0"
+"minify@npm:^11.2.0":
+  version: 11.2.0
+  resolution: "minify@npm:11.2.0"
   dependencies:
+    "@putout/minify": "npm:^3.0.0"
     clean-css: "npm:^5.0.1"
     css-b64-images: "npm:~0.2.5"
     debug: "npm:^4.1.0"
-    find-up: "npm:^6.1.0"
+    find-up: "npm:^7.0.0"
     html-minifier-terser: "npm:^7.1.0"
     readjson: "npm:^2.2.2"
     simport: "npm:^1.2.0"
-    terser: "npm:^5.3.2"
+    terser: "npm:^5.28.1"
     try-catch: "npm:^3.0.0"
     try-to-catch: "npm:^3.0.0"
   bin:
     minify: bin/minify.js
-  checksum: 10c0/103519850520630f0b3499c5ba3623a6a709dcc52de388f3d8ccac0e50368d1ba3714cae8ade5a8bac8e563536fe158a322869f2d34e91b7cff59df8937ad223
+  checksum: 10c0/55f604688e58636524edc184a19437a6fcc9377cac3b19e8d7eb27b79bece78fbea11f167dd3a99698058d5596d5ae114fb1d378abbc36a01a4e44108ecedb11
   languageName: node
   linkType: hard
 
@@ -2770,7 +2779,7 @@ __metadata:
     jasmine-reporters: "npm:^2.5.2"
     jsonld: "npm:^8.3.1"
     lodash: "npm:^4.17.21"
-    minify: "npm:^9.2.0"
+    minify: "npm:^11.2.0"
     mkdirp: "npm:^3.0.1"
     n3: "npm:^0.11.3"
     pegjs: "npm:^0.10.0"
@@ -3337,7 +3346,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"terser@npm:^5.15.1, terser@npm:^5.3.2":
+"terser@npm:^5.15.1, terser@npm:^5.28.1":
   version: 5.31.0
   resolution: "terser@npm:5.31.0"
   dependencies:
@@ -3458,6 +3467,13 @@ __metadata:
   dependencies:
     "@fastify/busboy": "npm:^2.0.0"
   checksum: 10c0/08d0f2596553aa0a54ca6e8e9c7f45aef7d042c60918564e3a142d449eda165a80196f6ef19ea2ef2e6446959e293095d8e40af1236f0d67223b06afac5ecad7
+  languageName: node
+  linkType: hard
+
+"unicorn-magic@npm:^0.1.0":
+  version: 0.1.0
+  resolution: "unicorn-magic@npm:0.1.0"
+  checksum: 10c0/e4ed0de05b0a05e735c7d8a2930881e5efcfc3ec897204d5d33e7e6247f4c31eac92e383a15d9a6bccb7319b4271ee4bea946e211bf14951fec6ff2cbbb66a92
   languageName: node
   linkType: hard
 
