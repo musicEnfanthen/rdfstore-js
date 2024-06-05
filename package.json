@@ -8,8 +8,8 @@
     "browserify": "mkdirp dist && browserify ./src/store.js -s rdfstore -u sqlite3 -u indexeddb-js > ./dist/rdfstore.js",
     "minify": "minify ./dist/rdfstore.js > ./dist/rdfstore_min.js",
     "build:browser": "yarn clean-dist && yarn browserify && yarn minify || exit 1",
-    "parse-grammar": "node pegjs/parse_grammar.js",
-    "performance": "node ./src/perftest/trees.js",
+    "parse-grammar": "yarn node pegjs/parse_grammar.js",
+    "performance": "yarn node ./src/perftest/trees.js",
     "specs": "jasmine ./spec/*.js",
     "\n---MAIN---": "",
     "build": "yarn parse-grammar && yarn build:browser",
@@ -55,9 +55,11 @@
     "lodash": "^4.17.21",
     "minify": "^9.2.0",
     "mkdirp": "^3.0.1",
-    "pegjs": "^0.10.0"
+    "pegjs": "^0.10.0",
+    "rimraf": "^5.0.7"
   },
   "resolutions": {
     "graceful-fs": "^4.2.9"
-  }
+  },
+  "packageManager": "yarn@4.2.2"
 }
