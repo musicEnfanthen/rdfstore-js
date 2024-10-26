@@ -1,13 +1,13 @@
 {
   "name": "rdfstore",
-  "version": "0.9.18-alpha.16",
+  "version": "0.9.18-alpha.17",
   "description": "RDF graph store supporting the SPARQL query language",
   "scripts": {
     "\n---HELPER---": "",
     "clean-dist": "rimraf ./dist",
     "browserify": "mkdirp dist && browserify ./src/store.js -s rdfstore -u sqlite3 -u indexeddb-js > ./dist/rdfstore.js",
-    "minify": "minify ./dist/rdfstore.js > ./dist/rdfstore_min.js",
-    "build:browser": "yarn clean-dist && yarn browserify && yarn minify || exit 1",
+    "uglify": "uglifyjs ./dist/rdfstore.js --mangle -o ./dist/rdfstore_min.js",
+    "build:browser": "yarn clean-dist && yarn browserify && yarn uglify || exit 1",
     "parse-grammar": "yarn node pegjs/parse_grammar.js",
     "performance": "yarn node ./src/perftest/trees.js",
     "specs": "jasmine ./spec/*.js",
@@ -40,26 +40,26 @@
   ],
   "main": "src/store",
   "dependencies": {
-    "jsonld": "^8.3.1",
+    "jsonld": "^8.3.2",
     "n3": "^0.11.3"
   },
   "optionalDependencies": {
     "indexeddb-js": "0.0.14",
-    "sqlite3": "^5.1.6"
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
-    "async": "^3.2.4",
-    "browserify": "17.0.0",
-    "jasmine": "^5.1.0",
+    "async": "^3.2.6",
+    "browserify": "17.0.1",
+    "jasmine": "^5.4.0",
     "jasmine-reporters": "^2.5.2",
     "lodash": "^4.17.21",
-    "minify": "^9.2.0",
     "mkdirp": "^3.0.1",
     "pegjs": "^0.10.0",
-    "rimraf": "^5.0.7"
+    "rimraf": "^6.0.1",
+    "uglify-js": "^3.19.3"
   },
   "resolutions": {
     "graceful-fs": "^4.2.9"
   },
-  "packageManager": "yarn@4.2.2"
+  "packageManager": "yarn@4.3.0"
 }
