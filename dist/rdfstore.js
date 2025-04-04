@@ -4955,7 +4955,8 @@ module.exports = class ContextResolver {
         'a same-origin policy (ensure the server uses CORS if you are ' +
         'using client-side JavaScript), too many redirects, a ' +
         'non-JSON response, or more than one HTTP Link Header was ' +
-        'provided for a remote context.',
+        'provided for a remote context. ' +
+        `URL: "${url}".`,
         'jsonld.InvalidUrl',
         {code: 'loading remote context failed', url, cause: e});
     }
@@ -4964,7 +4965,8 @@ module.exports = class ContextResolver {
     if(!_isObject(context)) {
       throw new JsonLdError(
         'Dereferencing a URL did not result in a JSON object. The ' +
-        'response was valid JSON, but it was not a JSON object.',
+        'response was valid JSON, but it was not a JSON object. ' +
+        `URL: "${url}".`,
         'jsonld.InvalidUrl', {code: 'invalid remote context', url});
     }
 
@@ -56696,7 +56698,7 @@ Store.prototype.close = function(cb) {
 /**
  * Version of the store
  */
-Store.VERSION = "0.9.18-alpha.17";
+Store.VERSION = "0.9.18-alpha.18";
 
 /**
  * Create a new RDFStore instance that will be
