@@ -41,7 +41,7 @@
   "main": "src/store",
   "dependencies": {
     "jsonld": "^8.3.2",
-    "n3": "^0.11.3"
+    "n3": "^1.25.2"
   },
   "optionalDependencies": {
     "indexeddb-js": "0.0.14",
