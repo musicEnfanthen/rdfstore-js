@@ -26,7 +26,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c6295a65d1254861815972266d5933fd6e532bdf # v2.11.1
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
 
@@ -36,7 +36,7 @@ jobs:
           fetch-depth: 0  # Get all history and branches
 
       - name: Set up node ${{ matrix.node-version}}
-        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # ratchet:actions/setup-node@v4.3.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # ratchet:actions/setup-node@v4.4.0
         with:
           node-version: ${{ matrix.node-version }}
 
@@ -44,7 +44,7 @@ jobs:
         run: corepack enable
 
       - name: Get yarn cache ${{ matrix.node-version}}
-        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # ratchet:actions/setup-node@v4.3.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # ratchet:actions/setup-node@v4.4.0
         with:
           cache: 'yarn'
 

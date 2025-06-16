@@ -1,6 +1,6 @@
 {
   "name": "rdfstore",
-  "version": "0.9.18-alpha.18",
+  "version": "0.9.18-alpha.19",
   "description": "RDF graph store supporting the SPARQL query language",
   "scripts": {
     "\n---HELPER---": "",
@@ -40,7 +40,7 @@
   ],
   "main": "src/store",
   "dependencies": {
-    "jsonld": "^8.3.2",
+    "jsonld": "^8.3.3",
     "n3": "^0.11.3"
   },
   "optionalDependencies": {
@@ -50,7 +50,7 @@
   "devDependencies": {
     "async": "^3.2.6",
     "browserify": "17.0.1",
-    "jasmine": "^5.4.0",
+    "jasmine": "^5.8.0",
     "jasmine-reporters": "^2.5.2",
     "lodash": "^4.17.21",
     "mkdirp": "^3.0.1",
@@ -59,7 +59,8 @@
     "uglify-js": "^3.19.3"
   },
   "resolutions": {
-    "graceful-fs": "^4.2.9"
+    "graceful-fs": "^4.2.9",
+    "node-gyp": "^10.1.0"
   },
-  "packageManager": "yarn@4.8.1"
+  "packageManager": "yarn@4.9.2"
 }
