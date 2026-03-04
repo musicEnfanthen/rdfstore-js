@@ -45,9 +45,27 @@ var gzippo = function(filename, charset, callback) {
 };
 
 Utils.serveFileRaw = function(docroot, request, response, contentType) {
-    var filePath = process.cwd()+'/'+docroot+request.url;
-    if(filePath[filePath.length-1] === '/')
-        filePath = filePath+"index.html";
+    // Resolve the document root to an absolute path
+    var root = path.resolve(process.cwd(), docroot);
+
+    // Use only the URL pathname (ignore query/fragment)
+    var parsedUrl = parse(request.url || '');
+    var requestedPath = parsedUrl.pathname || '/';
+
+    // Default to index.html for directory requests
+    if (requestedPath[requestedPath.length - 1] === '/') {
+        requestedPath = requestedPath + 'index.html';
+    }
+
+    // Resolve the requested path against the root, normalizing ".." etc.
+    var filePath = path.resolve(root, '.' + requestedPath);
+
+    // Ensure the resolved path is still under the root directory
+    if (filePath.indexOf(root + path.sep) !== 0 && filePath !== root) {
+        response.writeHead(403);
+        response.end();
+        return;
+    }
 
     if(contentType == null) {
         var extname = path.extname(filePath);
