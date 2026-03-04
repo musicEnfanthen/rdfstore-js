@@ -61,7 +61,8 @@ Utils.serveFileRaw = function(docroot, request, response, contentType) {
     var filePath = path.resolve(root, '.' + requestedPath);
 
     // Ensure the resolved path is still under the root directory
-    if (filePath.indexOf(root + path.sep) !== 0 && filePath !== root) {
+    var relative = path.relative(root, filePath);
+    if (path.isAbsolute(relative) || relative === '..' || relative.indexOf('..' + path.sep) === 0) {
         response.writeHead(403);
         response.end();
         return;
