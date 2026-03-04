@@ -50,7 +50,7 @@
   "devDependencies": {
     "async": "^3.2.6",
     "browserify": "17.0.1",
-    "jasmine": "^5.8.0",
+    "jasmine": "^6.1.0",
     "jasmine-reporters": "^2.5.2",
     "lodash": "^4.17.21",
     "mkdirp": "^3.0.1",

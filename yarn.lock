@@ -46,6 +46,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@jasminejs/reporters@npm:^1.0.0":
+  version: 1.0.0
+  resolution: "@jasminejs/reporters@npm:1.0.0"
+  checksum: 10c0/0175057c1dd7dda080ea7ec208a2bc6d98c2fca4c7458afaec951d94011d30749b3af751f6dda2d85b074a8fef6765a04558ec714cedb3d81819839c5254ca01
+  languageName: node
+  linkType: hard
+
 "@npmcli/agent@npm:^2.0.0":
   version: 2.2.2
   resolution: "@npmcli/agent@npm:2.2.2"
@@ -1339,6 +1346,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"glob@npm:^10.2.2 || ^11.0.3 || ^12.0.0 || ^13.0.0, glob@npm:^13.0.3":
+  version: 13.0.6
+  resolution: "glob@npm:13.0.6"
+  dependencies:
+    minimatch: "npm:^10.2.2"
+    minipass: "npm:^7.1.3"
+    path-scurry: "npm:^2.0.2"
+  checksum: 10c0/269c236f11a9b50357fe7a8c6aadac667e01deb5242b19c84975628f05f4438d8ee1354bb62c5d6c10f37fd59911b54d7799730633a2786660d8c69f1d18120a
+  languageName: node
+  linkType: hard
+
 "glob@npm:^10.2.2, glob@npm:^10.3.10":
   version: 10.4.1
   resolution: "glob@npm:10.4.1"
@@ -1351,17 +1369,6 @@ __metadata:
   bin:
     glob: dist/esm/bin.mjs
   checksum: 10c0/77f2900ed98b9cc2a0e1901ee5e476d664dae3cd0f1b662b8bfd4ccf00d0edc31a11595807706a274ca10e1e251411bbf2e8e976c82bed0d879a9b89343ed379
-  languageName: node
-  linkType: hard
-
-"glob@npm:^13.0.3":
-  version: 13.0.6
-  resolution: "glob@npm:13.0.6"
-  dependencies:
-    minimatch: "npm:^10.2.2"
-    minipass: "npm:^7.1.3"
-    path-scurry: "npm:^2.0.2"
-  checksum: 10c0/269c236f11a9b50357fe7a8c6aadac667e01deb5242b19c84975628f05f4438d8ee1354bb62c5d6c10f37fd59911b54d7799730633a2786660d8c69f1d18120a
   languageName: node
   linkType: hard
 
@@ -1768,10 +1775,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jasmine-core@npm:~5.12.0":
-  version: 5.12.0
-  resolution: "jasmine-core@npm:5.12.0"
-  checksum: 10c0/696e91c637d832045f8e9fe716d10c3e08413cecc54750a5847f5ae89a1aa652976aaf2858824345cc99ddbb35b5f583c3f641a7d4f0947aacd8ddf8b4e42537
+"jasmine-core@npm:~6.1.0":
+  version: 6.1.0
+  resolution: "jasmine-core@npm:6.1.0"
+  checksum: 10c0/c2a6e7687e057f04c9b63b2a0dd2730745dbd9e6dc837ae4caf4afa04481060242a5805cc99fbd39235d07f08690b5d9df05f6d479caf0f43f86026d021d04e8
   languageName: node
   linkType: hard
 
@@ -1785,15 +1792,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jasmine@npm:^5.8.0":
-  version: 5.12.0
-  resolution: "jasmine@npm:5.12.0"
+"jasmine@npm:^6.1.0":
+  version: 6.1.0
+  resolution: "jasmine@npm:6.1.0"
   dependencies:
-    glob: "npm:^10.2.2"
-    jasmine-core: "npm:~5.12.0"
+    "@jasminejs/reporters": "npm:^1.0.0"
+    glob: "npm:^10.2.2 || ^11.0.3 || ^12.0.0 || ^13.0.0"
+    jasmine-core: "npm:~6.1.0"
   bin:
     jasmine: bin/jasmine.js
-  checksum: 10c0/4c56c77e67989633af999ee6c4b00531e8f28c059a096fc8f909ca1c732057a5aeb9b0dbb427a210b9ac7b48b5102e363385d50559da33d517e4b2b5f9782113
+  checksum: 10c0/d0f0536b348f2510289c47e55fa2206f33294259cd5d6920ac429f4347e1f54b7df0206969d8ab538182a10eaea875d0e8814f5e80eacf9ec5e1ed88c2d66d3b
   languageName: node
   linkType: hard
 
@@ -2658,7 +2666,7 @@ __metadata:
     async: "npm:^3.2.6"
     browserify: "npm:17.0.1"
     indexeddb-js: "npm:0.0.14"
-    jasmine: "npm:^5.8.0"
+    jasmine: "npm:^6.1.0"
     jasmine-reporters: "npm:^2.5.2"
     jsonld: "npm:^8.3.3"
     lodash: "npm:^4.17.21"
