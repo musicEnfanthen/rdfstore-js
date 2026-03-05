@@ -8,7 +8,9 @@ var toTriples = async function (input, graph, cb) {
 
     var parseTerm = function (term) {
         if (term.termType === 'BlankNode') {
-            return {'blank': term.value};
+            // Ensure blank node values always start with "_:" prefix
+            var blankValue = term.value.startsWith('_:') ? term.value : '_:' + term.value;
+            return {'blank': blankValue};
         } else if (term.termType === 'NamedNode') {
             return {'token': 'uri', 'value': term.value};
         } else if (term.termType === 'Literal') {
