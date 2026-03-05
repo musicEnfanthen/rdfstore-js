@@ -4,7 +4,7 @@
 import { existsSync } from 'fs';
 import { readFileSync } from 'fs';
 
-console.log('🔧 E2E Test 3/3: ESM Compatibility');
+console.log('🔧 E2E Test 4/4: ESM Compatibility');
 console.log('================================\n');
 
 // Test 1: Verify package configuration
