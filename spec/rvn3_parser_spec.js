@@ -563,7 +563,7 @@ describe("RVN3Parser#parse", function(){
     });
 
 
-    it("Should parse statements with multi element list object",  function(done) {
+    it("Should parse blank node statements with multi element list object",  function(done) {
         shouldParse('("y") <a> <b>.',
             [ { subject: { blank: '_:0' },
                 predicate:
