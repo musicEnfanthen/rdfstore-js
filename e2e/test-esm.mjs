@@ -52,6 +52,11 @@ console.log('');
 // Test 3: Dynamic import test
 console.log('🔄 Step 3: Dynamic Import Test');
 try {
+  // Polyfill for Node.js - UMD bundle expects browser globals
+  if (typeof globalThis !== 'undefined' && typeof globalThis.self === 'undefined') {
+    globalThis.self = globalThis;
+  }
+  
   const module = await import('../dist/rdfstore_min.js');
   
   if (module) {
