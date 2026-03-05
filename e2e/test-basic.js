@@ -1,7 +1,7 @@
 // Simple rdfstore-js test - just the basics
 var rdfstore = require('../src/store');
 
-console.log('\n🔧 E2E Test 1/2: Basic Integration');
+console.log('\n🔧 E2E Test 1/3: Basic Integration');
 console.log('================================');
 
 rdfstore.create(function(err, store) {
