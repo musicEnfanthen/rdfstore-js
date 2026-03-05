@@ -8,13 +8,16 @@
     "browserify": "mkdirp dist && browserify ./src/store.js -s rdfstore -u sqlite3 -u indexeddb-js > ./dist/rdfstore.js",
     "uglify": "uglifyjs ./dist/rdfstore.js --mangle -o ./dist/rdfstore_min.js",
     "build:browser": "yarn clean-dist && yarn browserify && yarn uglify || exit 1",
+    "e2e:basic": "yarn node e2e/test-basic.js",
+    "e2e:comprehensive": "yarn node e2e/test-comprehensive.js",
     "parse-grammar": "yarn node pegjs/parse_grammar.js",
     "performance": "yarn node ./src/perftest/trees.js",
     "specs": "jasmine ./spec/*.js",
     "\n---MAIN---": "",
     "build": "yarn parse-grammar && yarn build:browser",
-    "test": "yarn parse-grammar && yarn specs"
-  },
+    "e2e": "yarn e2e:basic && yarn e2e:comprehensive",
+    "unit": "yarn parse-grammar && yarn specs",
+    "test": "yarn parse-grammar && yarn specs && yarn e2e"  },
   "keywords": [
     "RDF",
     "SPARQL",
