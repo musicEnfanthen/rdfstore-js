@@ -10,14 +10,16 @@
     "build:browser": "yarn clean-dist && yarn browserify && yarn uglify || exit 1",
     "e2e:basic": "yarn node e2e/test-basic.js",
     "e2e:comprehensive": "yarn node e2e/test-comprehensive.js",
+    "e2e:esm": "yarn node e2e/test-esm.mjs",
     "parse-grammar": "yarn node pegjs/parse_grammar.js",
     "performance": "yarn node ./src/perftest/trees.js",
     "specs": "jasmine ./spec/*.js",
     "\n---MAIN---": "",
     "build": "yarn parse-grammar && yarn build:browser",
-    "e2e": "yarn e2e:basic && yarn e2e:comprehensive",
+    "e2e": "yarn e2e:basic && yarn e2e:comprehensive && yarn e2e:esm",
     "unit": "yarn parse-grammar && yarn specs",
-    "test": "yarn parse-grammar && yarn specs && yarn e2e"  },
+    "test": "yarn parse-grammar && yarn specs && yarn e2e"
+  },
   "keywords": [
     "RDF",
     "SPARQL",
@@ -41,7 +43,14 @@
       "url": "http://opensource.org/licenses/MIT"
     }
   ],
-  "main": "src/store",
+  "main": "src/store.js",
+  "type": "commonjs",
+  "exports": {
+    ".": {
+      "require": "./src/store.js",
+      "import": "./dist/rdfstore_min.js"
+    }
+  },
   "dependencies": {
     "jsonld": "^9.0.0",
     "n3": "^2.0.1"
