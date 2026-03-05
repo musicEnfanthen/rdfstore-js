@@ -80,7 +80,7 @@ var runW3CTestSpec = function(manifestPath, done) {
     var testsPrefix = parts.join("/");
     var manifestN3Data = fs.readFileSync(manifestPath).toString();
 
-    var parser = N3.Parser();
+    var parser = new N3.Parser();
     var triples = [];
     var objects = [];
 
