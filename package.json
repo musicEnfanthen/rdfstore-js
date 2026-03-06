@@ -5,9 +5,9 @@
   "scripts": {
     "\n---HELPER---": "",
     "clean-dist": "rimraf ./dist",
-    "browserify": "mkdirp dist && esbuild src/store.js --bundle --format=iife --global-name=rdfstore --external:sqlite3 --external:indexeddb-js --external:http --external:https --external:url --external:fs --external:path --outfile=dist/rdfstore.js",
-    "minify": "esbuild dist/rdfstore.js --minify --outfile=dist/rdfstore_min.js",
-    "build:browser": "yarn clean-dist && yarn browserify && yarn minify || exit 1",
+    "build:bundle": "yarn node esbuild.config.mjs",
+    "build:minify": "esbuild dist/rdfstore.js --minify --outfile=dist/rdfstore_min.js",
+    "build:browser": "yarn clean-dist && yarn build:bundle && yarn build:minify || exit 1",
     "e2e:basic": "yarn node e2e/test-basic.js",
     "e2e:comprehensive": "yarn node e2e/test-comprehensive.js",
     "e2e:esm": "yarn node e2e/test-esm.mjs",
@@ -31,12 +31,18 @@
     "name": "Antonio Garrote",
     "email": "<antoniogarrote@gmail.com>"
   },
+  "contributors": [
+    {
+      "name": "Stefan Münnich",
+      "email": "<stefan.muennich@unibas.ch>"
+    }
+  ],
   "engines": {
     "node": ">=0.6.1"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/antoniogarrote/rdfstore-js.git"
+    "url": "https://github.com/musicEnfanthen/rdfstore-js.git"
   },
   "licenses": [
     {
@@ -66,7 +72,6 @@
     "jasmine": "^6.1.0",
     "jasmine-reporters": "^2.5.2",
     "lodash": "^4.17.21",
-    "mkdirp": "^3.0.1",
     "pegjs": "^0.10.0",
     "rimraf": "^6.0.1"
   },

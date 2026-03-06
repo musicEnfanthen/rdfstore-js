@@ -1,6 +1,7 @@
 var fs = require('fs');
 var PEG = require('pegjs');
 
+console.log('Starting parsing grammar');
 (async () => {
     await fs.readFile('pegjs/sparql_query.grammar', 'utf8', function(err, grammar){
         if(err) {
@@ -12,5 +13,5 @@ var PEG = require('pegjs');
             fs.writeFileSync('src/parser.js',"module.exports = "+parser);
         }
     });
-    console.log('Finished parsing grammar')
+    console.log('✅ Finished parsing grammar');
 })();

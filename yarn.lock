@@ -1260,15 +1260,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"mkdirp@npm:^3.0.1":
-  version: 3.0.1
-  resolution: "mkdirp@npm:3.0.1"
-  bin:
-    mkdirp: dist/cjs/src/bin.js
-  checksum: 10c0/9f2b975e9246351f5e3a40dcfac99fcd0baa31fbfab615fe059fb11e51f10e4803c63de1f384c54d656e4db31d000e4767e9ef076a22e12a641357602e31d57d
-  languageName: node
-  linkType: hard
-
 "ms@npm:2.1.2":
   version: 2.1.2
   resolution: "ms@npm:2.1.2"
@@ -1559,7 +1550,6 @@ __metadata:
     jasmine-reporters: "npm:^2.5.2"
     jsonld: "npm:^9.0.0"
     lodash: "npm:^4.17.21"
-    mkdirp: "npm:^3.0.1"
     n3: "npm:^2.0.1"
     pegjs: "npm:^0.10.0"
     rimraf: "npm:^6.0.1"
