@@ -5,9 +5,9 @@
   "scripts": {
     "\n---HELPER---": "",
     "clean-dist": "rimraf ./dist",
-    "browserify": "mkdirp dist && browserify ./src/store.js -s rdfstore -u sqlite3 -u indexeddb-js > ./dist/rdfstore.js",
-    "uglify": "uglifyjs ./dist/rdfstore.js --mangle -o ./dist/rdfstore_min.js",
-    "build:browser": "yarn clean-dist && yarn browserify && yarn uglify || exit 1",
+    "browserify": "mkdirp dist && esbuild src/store.js --bundle --format=iife --global-name=rdfstore --external:sqlite3 --external:indexeddb-js --external:http --external:https --external:url --external:fs --external:path --outfile=dist/rdfstore.js",
+    "minify": "esbuild dist/rdfstore.js --minify --outfile=dist/rdfstore_min.js",
+    "build:browser": "yarn clean-dist && yarn browserify && yarn minify || exit 1",
     "e2e:basic": "yarn node e2e/test-basic.js",
     "e2e:comprehensive": "yarn node e2e/test-comprehensive.js",
     "e2e:esm": "yarn node e2e/test-esm.mjs",
@@ -62,14 +62,13 @@
   },
   "devDependencies": {
     "async": "^3.2.6",
-    "browserify": "17.0.1",
+    "esbuild": "^0.27.3",
     "jasmine": "^6.1.0",
     "jasmine-reporters": "^2.5.2",
     "lodash": "^4.17.21",
     "mkdirp": "^3.0.1",
     "pegjs": "^0.10.0",
-    "rimraf": "^6.0.1",
-    "uglify-js": "^3.19.3"
+    "rimraf": "^6.0.1"
   },
   "resolutions": {
     "graceful-fs": "^4.2.9",
