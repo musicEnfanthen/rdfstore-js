@@ -1,7 +1,7 @@
 // Comprehensive test script to verify all rdfstore-js functionality
 var rdfstore = require('../src/store');
 
-console.log('🔧 E2E Test 2/3: Comprehensive Integration');
+console.log('🔧 E2E Test 2/4: Comprehensive Integration');
 console.log('==========================================');
 
 // 1. Create store
