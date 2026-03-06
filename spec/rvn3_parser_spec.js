@@ -260,7 +260,7 @@ describe("RVN3Parser#parse", function(){
         shouldParse('_:a <b> _:c.',
             [ { subject: { blank: '_:0_a' },
                 predicate: { token: 'uri', value: 'b', prefix: null, suffix: null },
-                object: { blank: '_:0_c' },
+                object: { blank: '_:1_c' },
                 graph: null } ],
             done);
     });
@@ -276,7 +276,7 @@ describe("RVN3Parser#parse", function(){
     });
 
 
-    it("Should parse statements with unnmaed blank nodes in subject",  function(done) {
+    it("Should parse statements with unnamed blank nodes in subject",  function(done) {
         shouldParse('[<a> <b>] <c> <d>.',
             [ { subject: { blank: '_:0' },
                 predicate: { token: 'uri', value: 'a', prefix: null, suffix: null },
@@ -355,15 +355,15 @@ describe("RVN3Parser#parse", function(){
 
     it("Should parse statement with nested blank nodes subject",  function(done) {
         shouldParse('[<a> [<x> <y>]] <c> <d>.',
-            [ { subject: { blank: '_:1' },
+            [ { subject: { blank: '_:0' },
                 predicate: { token: 'uri', value: 'x', prefix: null, suffix: null },
                 object: { token: 'uri', value: 'y', prefix: null, suffix: null },
                 graph: null },
-                { subject: { blank: '_:0' },
+                { subject: { blank: '_:1' },
                     predicate: { token: 'uri', value: 'a', prefix: null, suffix: null },
-                    object: { blank: '_:1' },
+                    object: { blank: '_:0' },
                     graph: null },
-                { subject: { blank: '_:0' },
+                { subject: { blank: '_:1' },
                     predicate: { token: 'uri', value: 'c', prefix: null, suffix: null },
                     object: { token: 'uri', value: 'd', prefix: null, suffix: null },
                     graph: null } ],
@@ -372,17 +372,17 @@ describe("RVN3Parser#parse", function(){
 
     it("Should parse statements with nested blank nodes object",  function(done) {
         shouldParse('<a> <b> [<c> [<d> <e>]].',
-            [ { subject: { blank: '_:1' },
+            [ { subject: { blank: '_:0' },
                 predicate: { token: 'uri', value: 'd', prefix: null, suffix: null },
                 object: { token: 'uri', value: 'e', prefix: null, suffix: null },
                 graph: null },
-                { subject: { blank: '_:0' },
+                { subject: { blank: '_:1' },
                     predicate: { token: 'uri', value: 'c', prefix: null, suffix: null },
-                    object: { blank: '_:1' },
+                    object: { blank: '_:0' },
                     graph: null },
                 { subject: { token: 'uri', value: 'a', prefix: null, suffix: null },
                     predicate: { token: 'uri', value: 'b', prefix: null, suffix: null },
-                    object: { blank: '_:0' },
+                    object: { blank: '_:1' },
                     graph: null } ],
             done);
     });
@@ -563,7 +563,7 @@ describe("RVN3Parser#parse", function(){
     });
 
 
-    it("Should parse statements with multi element list object",  function(done) {
+    it("Should parse blank node statements with multi element list object",  function(done) {
         shouldParse('("y") <a> <b>.',
             [ { subject: { blank: '_:0' },
                 predicate:
@@ -787,7 +787,7 @@ describe("RVN3Parser#parse", function(){
 
     it("Should parse statements with list containing empty node containing list",  function(done) {
         shouldParse('[<a> (<b>)] <c> <d>.',
-            [ { subject: { blank: '_:1' },
+            [ { subject: { blank: '_:0' },
                 predicate:
                 { token: 'uri',
                     value: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#first',
@@ -795,7 +795,7 @@ describe("RVN3Parser#parse", function(){
                     suffix: null },
                 object: { token: 'uri', value: 'b', prefix: null, suffix: null },
                 graph: null },
-                { subject: { blank: '_:1' },
+                { subject: { blank: '_:0' },
                     predicate:
                     { token: 'uri',
                         value: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#rest',
@@ -807,11 +807,11 @@ describe("RVN3Parser#parse", function(){
                         prefix: null,
                         suffix: null },
                     graph: null },
-                { subject: { blank: '_:0' },
+                { subject: { blank: '_:1' },
                     predicate: { token: 'uri', value: 'a', prefix: null, suffix: null },
-                    object: { blank: '_:1' },
+                    object: { blank: '_:0' },
                     graph: null },
-                { subject: { blank: '_:0' },
+                { subject: { blank: '_:1' },
                     predicate: { token: 'uri', value: 'c', prefix: null, suffix: null },
                     object: { token: 'uri', value: 'd', prefix: null, suffix: null },
                     graph: null } ],

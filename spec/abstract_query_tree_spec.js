@@ -224,7 +224,7 @@ describe("Parser", function() {
     });
 
 
-    it("Should be possible to bind variables in a result example 1", function(){
+    it("Should be possible to bind variables in a result example with complex filter expressions", function(){
         var query = "SELECT * { ?s :p1 ?v1 OPTIONAL {?s :p2 ?v2 FILTER(?v1<3 && (?v1+?v1) < (5*?v1) && STR(?v1)) } }";
 
         var query = aqt.parseQueryString(query);
