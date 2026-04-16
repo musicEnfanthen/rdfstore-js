@@ -68,7 +68,7 @@
   },
   "devDependencies": {
     "async": "^3.2.6",
-    "esbuild": "^0.27.3",
+    "esbuild": "^0.28.0",
     "jasmine": "^6.1.0",
     "jasmine-reporters": "^2.5.2",
     "lodash": "^4.17.23",
