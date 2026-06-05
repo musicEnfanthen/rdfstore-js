@@ -2,7 +2,7 @@
 # Manual changes might be lost - proceed with caution!
 
 __metadata:
-  version: 8
+  version: 10
   cacheKey: 10c0
 
 "@digitalbazaar/http-client@npm:^4.2.0":
@@ -732,7 +732,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jasmine@npm:^6.1.0":
+"jasmine@npm:^6.2.0":
   version: 6.2.0
   resolution: "jasmine@npm:6.2.0"
   dependencies:
@@ -771,7 +771,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lodash@npm:^4.17.23":
+"lodash@npm:^4.18.1":
   version: 4.18.1
   resolution: "lodash@npm:4.18.1"
   checksum: 10c0/757228fc68805c59789e82185135cf85f05d0b2d3d54631d680ca79ec21944ec8314d4533639a14b8bcfbd97a517e78960933041a5af17ecb693ec6eecb99a27
@@ -951,7 +951,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"n3@npm:^2.0.1":
+"n3@npm:^2.0.3":
   version: 2.0.3
   resolution: "n3@npm:2.0.3"
   dependencies:
@@ -1187,11 +1187,11 @@ __metadata:
     async: "npm:^3.2.6"
     esbuild: "npm:^0.28.0"
     indexeddb-js: "npm:0.0.14"
-    jasmine: "npm:^6.1.0"
+    jasmine: "npm:^6.2.0"
     jasmine-reporters: "npm:^2.5.2"
     jsonld: "npm:^9.0.0"
-    lodash: "npm:^4.17.23"
-    n3: "npm:^2.0.1"
+    lodash: "npm:^4.18.1"
+    n3: "npm:^2.0.3"
     pegjs: "npm:^0.10.0"
     rimraf: "npm:^6.1.3"
     sqlite3: "npm:^6.0.1"
