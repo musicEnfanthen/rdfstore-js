@@ -26414,8 +26414,9 @@ var rdfstore = (() => {
         // ### The direction of this literal
         get direction() {
           const id = this.id;
-          const atPos = id.lastIndexOf("--") + 2;
-          return atPos > 1 && atPos < id.length ? id.substr(atPos).toLowerCase() : "";
+          const endPos = id.lastIndexOf('"');
+          const dirPos = id.lastIndexOf("--");
+          return dirPos > endPos && dirPos + 2 < id.length ? id.substr(dirPos + 2).toLowerCase() : "";
         }
         // ### The datatype IRI of this literal
         get datatype() {
@@ -27090,7 +27091,7 @@ var rdfstore = (() => {
               break;
             // Create a language-tagged string
             case "langcode":
-              if (token.value.length > 8) return this._error("Detected language tag of length larger than 8", token);
+              if (token.value.split("-").some((t) => t.length > 8)) return this._error("Detected language tag with subtag longer than 8 characters", token);
               literal = this._factory.literal(this._literalValue, token.value);
               this._literalLanguage = token.value;
               token = null;
@@ -48022,7 +48023,7 @@ var rdfstore = (() => {
         else
           cb();
       };
-      Store.VERSION = "0.9.18-alpha.20";
+      Store.VERSION = "0.9.18-alpha.21";
       var connect = function() {
         var callback;
         if (arguments.length == 1) {
