@@ -215,10 +215,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@jasminejs/reporters@npm:^1.0.0":
-  version: 1.0.0
-  resolution: "@jasminejs/reporters@npm:1.0.0"
-  checksum: 10c0/0175057c1dd7dda080ea7ec208a2bc6d98c2fca4c7458afaec951d94011d30749b3af751f6dda2d85b074a8fef6765a04558ec714cedb3d81819839c5254ca01
+"@jasminejs/reporters@npm:^1.1.0":
+  version: 1.1.0
+  resolution: "@jasminejs/reporters@npm:1.1.0"
+  checksum: 10c0/94e2b4d89a0e674adb56a66833ad797d6e0fccbacf9d642e67e9a4750ffac67213d7d8a07ad1de9001a2d595890fc901397e492748a0c9cfbabd7cab354dcb2d
   languageName: node
   linkType: hard
 
@@ -715,10 +715,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jasmine-core@npm:~6.3.0":
-  version: 6.3.0
-  resolution: "jasmine-core@npm:6.3.0"
-  checksum: 10c0/4176118dce0545f841a9bd57b22db82eff7a974d94fc73e06b4c7148d29ea276cdc00fbe2bb9631bc4264e6868b423650c818987b4f79bd512295c9abef0d344
+"jasmine-core@npm:~7.0.0":
+  version: 7.0.1
+  resolution: "jasmine-core@npm:7.0.1"
+  checksum: 10c0/25b15c46ca44df8160cb73c5449f93457d2c64947d84fc4858b11f60ea70361192d196e25babdfcd0905d5944ef5b9ed0dcf9809a86e1bb0666c642f25116091
   languageName: node
   linkType: hard
 
@@ -732,16 +732,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jasmine@npm:^6.2.0":
-  version: 6.3.0
-  resolution: "jasmine@npm:6.3.0"
+"jasmine@npm:^7.0.0":
+  version: 7.0.0
+  resolution: "jasmine@npm:7.0.0"
   dependencies:
-    "@jasminejs/reporters": "npm:^1.0.0"
+    "@jasminejs/reporters": "npm:^1.1.0"
     glob: "npm:^10.2.2 || ^11.0.3 || ^12.0.0 || ^13.0.0"
-    jasmine-core: "npm:~6.3.0"
+    jasmine-core: "npm:~7.0.0"
   bin:
     jasmine: bin/jasmine.js
-  checksum: 10c0/b85c9e3b6e36e88821c54b1a9ef05d71b8f1fe08769ca4bb7636fe985b31cfc5e7d6b949ab8e4c765afd9c8f8e13f02c89a3c819018adbe4cb122eabf811d45b
+  checksum: 10c0/641c845e85c68a0520349edff224ad507148c3ab912509be087b600adf294831a3b0529229f7990c942a02a174daf4e77c3c7a13bcf2f885ce8a0f79ada2b76c
   languageName: node
   linkType: hard
 
@@ -1187,7 +1187,7 @@ __metadata:
     async: "npm:^3.2.6"
     esbuild: "npm:^0.28.0"
     indexeddb-js: "npm:0.0.14"
-    jasmine: "npm:^6.2.0"
+    jasmine: "npm:^7.0.0"
     jasmine-reporters: "npm:^2.5.2"
     jsonld: "npm:^9.0.0"
     lodash: "npm:^4.18.1"
