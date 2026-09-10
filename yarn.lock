@@ -952,12 +952,12 @@ __metadata:
   linkType: hard
 
 "n3@npm:^2.0.3":
-  version: 2.1.1
-  resolution: "n3@npm:2.1.1"
+  version: 2.7.12
+  resolution: "n3@npm:2.7.12"
   dependencies:
     buffer: "npm:^6.0.3"
     readable-stream: "npm:^4.0.0"
-  checksum: 10c0/fb1a47512d5021ff54674425e46dcf7510346f718d91aa0c9708af2de2c10f9ef6a1d9e8e1075ca2586ae492a214e4a2cf62cbf2d7f9b1b1acc94c2e471a55b2
+  checksum: 10c0/2990bcc8efe4d23131d3b46b6833bf5777f936da473da5f8c1fe26026fbababb5fbd52cf2e1e6cdbd98ab233764d4a7d1553fc1376395093c47869a8e9aed93f
   languageName: node
   linkType: hard
 
