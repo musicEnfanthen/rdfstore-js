@@ -754,15 +754,15 @@ describe("Store", function () {
                 } else if (counter === 3) {
                     expect(false).toBe(true);
                 }
-            });
-
-            store.execute('INSERT DATA {  <http://example/book> <http://example.com/vocab#title> <http://test.com/example> }', function () {
-                store.execute('INSERT DATA {  <http://example/book> <http://example.com/vocab#title2> <http://test.com/example2>.\
-                                          <http://example/book> <http://example.com/vocab#title3> <http://test.com/example3> }', function () {
-                    store.execute('DELETE DATA {  <http://example/book> <http://example.com/vocab#title2> <http://test.com/example2> }', function () {
-                        store.execute('INSERT DATA {  <http://example/book> <http://example.com/vocab#title2> <http://test.com/example3> }', function () {
-                            store.close(function () {
-                                done();
+            }, function () {
+                store.execute('INSERT DATA {  <http://example/book> <http://example.com/vocab#title> <http://test.com/example> }', function () {
+                    store.execute('INSERT DATA {  <http://example/book> <http://example.com/vocab#title2> <http://test.com/example2>.\
+                                              <http://example/book> <http://example.com/vocab#title3> <http://test.com/example3> }', function () {
+                        store.execute('DELETE DATA {  <http://example/book> <http://example.com/vocab#title2> <http://test.com/example2> }', function () {
+                            store.execute('INSERT DATA {  <http://example/book> <http://example.com/vocab#title2> <http://test.com/example3> }', function () {
+                                store.close(function () {
+                                    done();
+                                });
                             });
                         });
                     });
