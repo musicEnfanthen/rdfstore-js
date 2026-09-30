@@ -414,8 +414,9 @@ Store.prototype.stopObservingQuery = function(query) {
  * @param {String} o object or null for any object
  * @param {String} g graph or null for any graph
  * @param {Function} event listener function that will be notified when a change occurs
+ * @param {Function} [readyCallback] invoked once the subscription has been registered
  */
-Store.prototype.subscribe = function(s, p, o, g, callback) {
+Store.prototype.subscribe = function(s, p, o, g, callback, readyCallback) {
     var that = this;
     var adapterCb = function(event,triples){
 		var acum = [];
@@ -435,7 +436,8 @@ Store.prototype.subscribe = function(s, p, o, g, callback) {
     };
 
     this.functionMap[callback] = adapterCb;
-    this.engine.callbacksBackend.subscribe(s,p,o,g,adapterCb,function(){});
+	this.engine.callbacksBackend.subscribe(s,p,o,g,adapterCb,
+		typeof readyCallback === 'function' ? readyCallback : function(){});
 };
 
 /**
@@ -849,7 +851,7 @@ Store.prototype.close = function(cb) {
 /**
  * Version of the store
  */
-Store.VERSION = "0.9.18-alpha.21";
+Store.VERSION = "0.9.18-alpha.22";
 
 /**
  * Create a new RDFStore instance that will be
