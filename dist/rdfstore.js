@@ -1,7 +1,11 @@
 var rdfstore = (() => {
   var __getOwnPropNames = Object.getOwnPropertyNames;
   var __commonJS = (cb, mod) => function __require() {
-    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+    try {
+      return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+    } catch (e) {
+      throw mod = 0, e;
+    }
   };
 
   // src/parser.js
@@ -25867,6 +25871,7 @@ var rdfstore = (() => {
         xsd: {
           decimal: `${XSD}decimal`,
           boolean: `${XSD}boolean`,
+          dateTime: `${XSD}dateTime`,
           double: `${XSD}double`,
           integer: `${XSD}integer`,
           string: `${XSD}string`
@@ -25911,8 +25916,13 @@ var rdfstore = (() => {
       var {
         xsd
       } = _IRIs.default;
+      var SPACE = 32;
+      var TAB = 9;
+      var LF = 10;
+      var CR = 13;
+      var HASH = 35;
       var escapeSequence = /\\u([a-fA-F0-9]{4})|\\U([a-fA-F0-9]{8})|\\([^])/g;
-      var escapeReplacements = {
+      var stringEscapeReplacements = {
         "\\": "\\",
         "'": "'",
         '"': '"',
@@ -25920,7 +25930,9 @@ var rdfstore = (() => {
         "r": "\r",
         "t": "	",
         "f": "\f",
-        "b": "\b",
+        "b": "\b"
+      };
+      var localNameEscapeReplacements = {
         "_": "_",
         "~": "~",
         ".": ".",
@@ -25928,6 +25940,7 @@ var rdfstore = (() => {
         "!": "!",
         "$": "$",
         "&": "&",
+        "'": "'",
         "(": "(",
         ")": ")",
         "*": "*",
@@ -25942,17 +25955,17 @@ var rdfstore = (() => {
         "%": "%"
       };
       var illegalIriChars = /[\x00-\x20<>\\"\{\}\|\^\`]/;
+      function isValidCodePoint(charCode) {
+        return charCode <= 1114111 && (charCode < 55296 || charCode > 57343);
+      }
       var lineModeRegExps = {
         _iri: true,
         _unescapedIri: true,
         _simpleQuotedString: true,
         _langcode: true,
-        _dircode: true,
         _blank: true,
-        _newline: true,
-        _comment: true,
-        _whitespace: true,
-        _endOfFile: true
+        _commentLine: true,
+        _whitespace: true
       };
       var invalidRegExp = /$0^/;
       var N3Lexer = class {
@@ -25962,20 +25975,19 @@ var rdfstore = (() => {
           this._simpleQuotedString = /^"([^"\\\r\n]*)"(?=[^"])/;
           this._simpleApostropheString = /^'([^'\\\r\n]*)'(?=[^'])/;
           this._langcode = /^@([a-z]+(?:-[a-z0-9]+)*)(?=[^a-z0-9])/i;
-          this._dircode = /^--(ltr)|(rtl)/;
           this._prefix = /^((?:[A-Za-z\xc0-\xd6\xd8-\xf6\xf8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff])(?:\.?[\-0-9A-Z_a-z\xb7\xc0-\xd6\xd8-\xf6\xf8-\u037d\u037f-\u1fff\u200c\u200d\u203f\u2040\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff])*)?:(?=[#\s<])/;
           this._prefixed = /^((?:[A-Za-z\xc0-\xd6\xd8-\xf6\xf8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff])(?:\.?[\-0-9A-Z_a-z\xb7\xc0-\xd6\xd8-\xf6\xf8-\u037d\u037f-\u1fff\u200c\u200d\u203f\u2040\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff])*)?:((?:(?:[0-:A-Z_a-z\xc0-\xd6\xd8-\xf6\xf8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff]|%[0-9a-fA-F]{2}|\\[!#-\/;=?\-@_~])(?:(?:[\.\-0-:A-Z_a-z\xb7\xc0-\xd6\xd8-\xf6\xf8-\u037d\u037f-\u1fff\u200c\u200d\u203f\u2040\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff]|%[0-9a-fA-F]{2}|\\[!#-\/;=?\-@_~])*(?:[\-0-:A-Z_a-z\xb7\xc0-\xd6\xd8-\xf6\xf8-\u037d\u037f-\u1fff\u200c\u200d\u203f\u2040\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff]|%[0-9a-fA-F]{2}|\\[!#-\/;=?\-@_~]))?)?)(?:[ \t]+|(?=\.?[,;!\^\s#()\[\]\{\}"'<>]))/;
           this._variable = /^\?(?:(?:[A-Z_a-z\xc0-\xd6\xd8-\xf6\xf8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff])(?:[\-0-:A-Z_a-z\xb7\xc0-\xd6\xd8-\xf6\xf8-\u037d\u037f-\u1fff\u200c\u200d\u203f\u2040\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff])*)(?=[.,;!\^\s#()\[\]\{\}"'<>])/;
-          this._blank = /^_:((?:[0-9A-Z_a-z\xc0-\xd6\xd8-\xf6\xf8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff])(?:\.?[\-0-9A-Z_a-z\xb7\xc0-\xd6\xd8-\xf6\xf8-\u037d\u037f-\u1fff\u200c\u200d\u203f\u2040\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff])*)(?:[ \t]+|(?=\.?[,;:\s#()\[\]\{\}"'<>]))/;
-          this._number = /^[\-+]?(?:(\d+\.\d*|\.?\d+)[eE][\-+]?|\d*(\.)?)\d+(?=\.?[,;:\s#()\[\]\{\}"'<>])/;
-          this._boolean = /^(?:true|false)(?=[.,;\s#()\[\]\{\}"'<>])/;
+          this._blank = /^_:((?:[0-9A-Z_a-z\xc0-\xd6\xd8-\xf6\xf8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff])(?:\.?[\-0-9A-Z_a-z\xb7\xc0-\xd6\xd8-\xf6\xf8-\u037d\u037f-\u1fff\u200c\u200d\u203f\u2040\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff])*)(?:[ \t]+|(?=\.?[,;:!\^\s#()\[\]\{\}"'<>]))/;
+          this._number = /^[\-+]?(?:(\d+\.\d*|\.?\d+)[eE][\-+]?|\d*(\.)?)\d+(?=\.?[,;:!\^\s#()\[\]\{\}"'<>])/;
+          this._boolean = /^(?:true|false)(?=[.,;!\^\s#()\[\]\{\}"'<>])/;
           this._atKeyword = /^@[a-z]+(?=[\s#<:])/i;
           this._keyword = /^(?:PREFIX|BASE|VERSION|GRAPH)(?=[\s#<])/i;
+          this._n3Verb = /^(?:has|is|of)(?=[\s#()\[\]\{\}"'<>?_+\-0-9])/;
+          this._n3Id = /^id(?=[\s#<])/;
           this._shortPredicates = /^a(?=[\s#()\[\]\{\}"'<>])/;
-          this._newline = /^[ \t]*(?:#[^\n\r]*)?(?:\r\n|\n|\r)[ \t]*/;
-          this._comment = /#([^\n\r]*)/;
+          this._commentLine = /^[ \t]*#([^\n\r]*)(?:\r\n|\n|\r)([ \t]*)/;
           this._whitespace = /^[ \t]+/;
-          this._endOfFile = /^(?:#[^\n\r]*)?$/;
           options = options || {};
           this._isImpliedBy = options.isImpliedBy;
           if (this._lineMode = !!options.lineMode) {
@@ -25993,32 +26005,73 @@ var rdfstore = (() => {
         // ### `_tokenizeToEnd` tokenizes as for as possible, emitting tokens through the callback
         _tokenizeToEnd(callback, inputFinished) {
           let input = this._input;
-          let currentLineLength = input.length;
+          let currentLineLength = this._linePosition + input.length;
           while (true) {
-            let whiteSpaceMatch, comment;
-            while (whiteSpaceMatch = this._newline.exec(input)) {
-              if (this.comments && (comment = this._comment.exec(whiteSpaceMatch[0]))) emitToken("comment", comment[1], "", this._line, whiteSpaceMatch[0].length);
-              input = input.substr(whiteSpaceMatch[0].length, input.length);
-              currentLineLength = input.length;
-              this._line++;
+            while (true) {
+              let charCode = input.charCodeAt(0), separatorLength = 0;
+              if (charCode === SPACE || charCode === TAB) {
+                const next = input.charCodeAt(1);
+                separatorLength = next === SPACE || next === TAB ? this._whitespace.exec(input)[0].length : 1;
+                charCode = input.charCodeAt(separatorLength);
+              }
+              if (charCode === HASH) {
+                const comment = this._commentLine.exec(input);
+                if (comment) {
+                  const commentLength = comment[0].length;
+                  if (!inputFinished && commentLength === input.length && input.charCodeAt(commentLength - 1) === CR) {
+                    this._linePosition = currentLineLength - input.length;
+                    return this._input = input;
+                  }
+                  if (this.comments) emitComment(comment[1], this._line, separatorLength);
+                  input = input.slice(commentLength);
+                  currentLineLength = input.length + comment[2].length;
+                  this._line++;
+                } else {
+                  input = input.slice(separatorLength);
+                  if (!inputFinished) {
+                    this._linePosition = currentLineLength - input.length;
+                    return this._input = input;
+                  }
+                  if (this.comments) emitComment(input.slice(1), this._line, 0);
+                  input = "";
+                  break;
+                }
+              } else if (charCode === LF || charCode === CR) {
+                if (!inputFinished && charCode === CR && separatorLength + 1 === input.length) {
+                  this._linePosition = currentLineLength - input.length;
+                  return this._input = input;
+                }
+                separatorLength += charCode === CR && input.charCodeAt(separatorLength + 1) === LF ? 2 : 1;
+                let indentationLength = 0;
+                const next = input.charCodeAt(separatorLength);
+                if (next === SPACE || next === TAB) {
+                  const following = input.charCodeAt(separatorLength + 1);
+                  indentationLength = following === SPACE || following === TAB ? this._whitespace.exec(input.slice(separatorLength))[0].length : 1;
+                }
+                input = input.slice(separatorLength + indentationLength);
+                currentLineLength = input.length + indentationLength;
+                this._line++;
+              } else {
+                if (separatorLength !== 0) input = input.slice(separatorLength);
+                break;
+              }
             }
-            if (!whiteSpaceMatch && (whiteSpaceMatch = this._whitespace.exec(input))) input = input.substr(whiteSpaceMatch[0].length, input.length);
-            if (this._endOfFile.test(input)) {
+            if (input.length === 0) {
               if (inputFinished) {
-                if (this.comments && (comment = this._comment.exec(input))) emitToken("comment", comment[1], "", this._line, input.length);
                 input = null;
                 emitToken("eof", "", "", this._line, 0);
               }
+              this._linePosition = currentLineLength;
               return this._input = input;
             }
             const line = this._line, firstChar = input[0];
-            let type = "", value = "", prefix = "", match = null, matchLength = 0, inconclusive = false;
+            let type = "", value = "", prefix = "", match = null, matchLength = 0, lexicalLength = 0, finalLineLength = 0, inconclusive = false;
             switch (firstChar) {
               case "^":
                 if (input.length < 3) break;
                 else if (input[1] === "^") {
                   this._previousMarker = "^^";
-                  input = input.substr(2);
+                  input = input.slice(2);
                   if (input[0] !== "<") {
                     inconclusive = true;
                     break;
@@ -26032,31 +26085,38 @@ var rdfstore = (() => {
                 }
               // Fall through in case the type is an IRI
               case "<":
-                if (match = this._unescapedIri.exec(input)) type = "IRI", value = match[1];
-                else if (match = this._iri.exec(input)) {
-                  value = this._unescape(match[1]);
+                if (match = this._unescapedIri.exec(input)) {
+                  type = "IRI", value = match[1];
+                  lexicalLength = match[1].length + 2;
+                } else if (match = this._iri.exec(input)) {
+                  value = this._unescape(match[1], stringEscapeReplacements);
                   if (value === null || illegalIriChars.test(value)) return reportSyntaxError(this);
                   type = "IRI";
+                  lexicalLength = match[1].length + 2;
                 } else if (input.length > 2 && input[1] === "<" && input[2] === "(") type = "<<(", matchLength = 3;
                 else if (!this._lineMode && input.length > (inputFinished ? 1 : 2) && input[1] === "<") type = "<<", matchLength = 2;
                 else if (this._n3Mode && input.length > 1 && input[1] === "=") {
                   matchLength = 2;
                   if (this._isImpliedBy) type = "abbreviation", value = "<";
                   else type = "inverse", value = ">";
-                }
+                } else if (this._n3Mode && input.length > 1 && input[1] === "-") type = "inversePredicate", matchLength = 2;
                 break;
               case ">":
                 if (input.length > 1 && input[1] === ">") type = ">>", matchLength = 2;
                 break;
               case "_":
-                if ((match = this._blank.exec(input)) || inputFinished && (match = this._blank.exec(`${input} `))) type = "blank", prefix = "_", value = match[1];
+                if ((match = this._blank.exec(input)) || inputFinished && (match = this._blank.exec(`${input} `))) {
+                  type = "blank", prefix = "_", value = match[1];
+                  lexicalLength = match[1].length + 2;
+                }
                 break;
               case '"':
                 if (match = this._simpleQuotedString.exec(input)) value = match[1];
                 else {
                   ({
                     value,
-                    matchLength
+                    matchLength,
+                    finalLineLength
                   } = this._parseLiteral(input));
                   if (value === null) return reportSyntaxError(this);
                 }
@@ -26071,7 +26131,8 @@ var rdfstore = (() => {
                   else {
                     ({
                       value,
-                      matchLength
+                      matchLength,
+                      finalLineLength
                     } = this._parseLiteral(input));
                     if (value === null) return reportSyntaxError(this);
                   }
@@ -26085,8 +26146,10 @@ var rdfstore = (() => {
                 if (this._n3Mode && (match = this._variable.exec(input))) type = "var", value = match[0];
                 break;
               case "@":
-                if (this._previousMarker === "literal" && (match = this._langcode.exec(input)) && match[1] !== "version") type = "langcode", value = match[1];
-                else if (match = this._atKeyword.exec(input)) type = match[0];
+                if (this._previousMarker === "literal" && (match = this._langcode.exec(input)) && match[1] !== "version") {
+                  if (!inputFinished && input[match[0].length] === "-" && input[match[0].length + 1] !== "-") match = null;
+                  else type = "langcode", value = match[1];
+                } else if (match = this._atKeyword.exec(input)) type = match[0];
                 break;
               case ".":
                 if (input.length === 1 ? inputFinished : input[1] < "0" || input[1] > "9") {
@@ -26108,7 +26171,10 @@ var rdfstore = (() => {
               case "+":
               case "-":
                 if (input[1] === "-") {
-                  if (this._previousMarker === "langcode" && (match = this._dircode.exec(input))) type = "dircode", matchLength = 2, value = match[1] || match[2], matchLength = value.length + 2;
+                  if (this._previousMarker === "langcode") {
+                    if (input.startsWith("--ltr")) type = "dircode", value = "ltr", matchLength = 5;
+                    else if (input.startsWith("--rtl")) type = "dircode", value = "rtl", matchLength = 5;
+                  }
                   break;
                 }
                 if (match = this._number.exec(input) || inputFinished && (match = this._number.exec(`${input} `))) {
@@ -26129,11 +26195,21 @@ var rdfstore = (() => {
                 break;
               case "f":
               case "t":
-                if (match = this._boolean.exec(input)) type = "literal", value = match[0], prefix = xsd.boolean;
+                if (this._boolean.test(input)) type = "literal", value = firstChar === "t" ? "true" : "false", prefix = xsd.boolean, matchLength = value.length;
                 else inconclusive = true;
                 break;
               case "a":
-                if (match = this._shortPredicates.exec(input)) type = "abbreviation", value = "a";
+                if (this._shortPredicates.test(input)) type = "abbreviation", value = "a", matchLength = 1;
+                else inconclusive = true;
+                break;
+              case "h":
+              case "o":
+                if (this._n3Mode && (match = this._matchN3Verb(input, inputFinished))) type = match[0];
+                else inconclusive = true;
+                break;
+              case "i":
+                if (this._n3Mode && this._n3Id.test(input)) type = "id", matchLength = 2;
+                else if (this._n3Mode && (match = this._matchN3Verb(input, inputFinished))) type = match[0];
                 else inconclusive = true;
                 break;
               case "=":
@@ -26179,7 +26255,11 @@ var rdfstore = (() => {
             }
             if (inconclusive) {
               if ((this._previousMarker === "@prefix" || this._previousMarker === "PREFIX") && (match = this._prefix.exec(input))) type = "prefix", value = match[1] || "";
-              else if ((match = this._prefixed.exec(input)) || inputFinished && (match = this._prefixed.exec(`${input} `))) type = "prefixed", prefix = match[1] || "", value = this._unescape(match[2]);
+              else if ((match = this._prefixed.exec(input)) || inputFinished && (match = this._prefixed.exec(`${input} `))) {
+                type = "prefixed", prefix = match[1] || "";
+                value = this._unescape(match[2], localNameEscapeReplacements);
+                lexicalLength = prefix.length + match[2].length + 1;
+              }
             }
             if (this._previousMarker === "^^") {
               switch (type) {
@@ -26195,13 +26275,40 @@ var rdfstore = (() => {
             }
             if (!type) {
               if (inputFinished || !/^'''|^"""/.test(input) && /\n|\r/.test(input)) return reportSyntaxError(this);
-              else return this._input = input;
+              else {
+                this._linePosition = currentLineLength - input.length;
+                return this._input = input;
+              }
             }
             const length = matchLength || match[0].length;
-            const token = emitToken(type, value, prefix, line, length);
+            let token;
+            if (finalLineLength) {
+              token = {
+                type,
+                value,
+                prefix,
+                line,
+                start: currentLineLength - input.length,
+                end: finalLineLength,
+                endLine: this._line
+              };
+              callback(null, token);
+            } else token = emitToken(type, value, prefix, line, lexicalLength || length);
             this.previousToken = token;
             this._previousMarker = type;
-            input = input.substr(length, input.length);
+            input = input.slice(length);
+            if (finalLineLength) currentLineLength = input.length + finalLineLength;
+          }
+          function emitComment(value, line, offset) {
+            const start = currentLineLength - input.length + offset;
+            callback(null, {
+              type: "comment",
+              value,
+              prefix: "",
+              line,
+              start,
+              end: start + value.length + 1
+            });
           }
           function emitToken(type, value, prefix, line, length) {
             const start = input ? currentLineLength - input.length : currentLineLength;
@@ -26221,16 +26328,42 @@ var rdfstore = (() => {
             callback(self2._syntaxError(/^\S*/.exec(input)[0]));
           }
         }
-        // ### `_unescape` replaces N3 escape codes by their corresponding characters
-        _unescape(item) {
+        // ### `_matchN3Verb` matches an N3 verb unless the input is a longer prefixed name
+        _matchN3Verb(input, inputFinished) {
+          const verb = this._n3Verb.exec(input);
+          if (!verb) return null;
+          const next = input[verb[0].length];
+          if (next !== "-" && next !== "_" && (next < "0" || next > "9")) return verb;
+          if (this._prefixed.exec(input) || this._prefixed.exec(`${input} `)) return null;
+          if (!inputFinished) {
+            const prefix = this._prefix.exec(`${input}: `);
+            if (prefix) return null;
+          }
+          return verb;
+        }
+        // ### `_unescape` replaces N3 escape codes by their corresponding characters,
+        // allowing only the fixed escape sequences from the given replacement table
+        _unescape(item, replacements) {
+          if (item.indexOf("\\") < 0) return item;
           let invalid = false;
           const replaced = item.replace(escapeSequence, (sequence, unicode4, unicode8, escapedChar) => {
-            if (typeof unicode4 === "string") return String.fromCharCode(Number.parseInt(unicode4, 16));
+            if (typeof unicode4 === "string") {
+              const charCode = Number.parseInt(unicode4, 16);
+              if (!isValidCodePoint(charCode)) {
+                invalid = true;
+                return "";
+              }
+              return String.fromCharCode(charCode);
+            }
             if (typeof unicode8 === "string") {
               let charCode = Number.parseInt(unicode8, 16);
+              if (!isValidCodePoint(charCode)) {
+                invalid = true;
+                return "";
+              }
               return charCode <= 65535 ? String.fromCharCode(Number.parseInt(unicode8, 16)) : String.fromCharCode(55296 + ((charCode -= 65536) >> 10), 56320 + (charCode & 1023));
             }
-            if (escapedChar in escapeReplacements) return escapeReplacements[escapedChar];
+            if (escapedChar in replacements) return replacements[escapedChar];
             invalid = true;
             return "";
           });
@@ -26239,21 +26372,24 @@ var rdfstore = (() => {
         // ### `_parseLiteral` parses a literal into an unescaped value
         _parseLiteral(input) {
           if (input.length >= 3) {
-            const opening = input.match(/^(?:"""|"|'''|'|)/)[0];
-            const openingLength = opening.length;
+            const quote = input[0];
+            const openingLength = input[1] === quote && input[2] === quote ? 3 : 1;
+            let opening = quote;
+            if (openingLength === 3) opening = quote === '"' ? '"""' : "'''";
             let closingPos = Math.max(this._literalClosingPos, openingLength);
             while ((closingPos = input.indexOf(opening, closingPos)) > 0) {
               let backslashCount = 0;
               while (input[closingPos - backslashCount - 1] === "\\") backslashCount++;
               if (backslashCount % 2 === 0) {
-                const raw = input.substring(openingLength, closingPos);
-                const lines = raw.split(/\r\n|\r|\n/).length - 1;
+                const raw = input.substring(openingLength, closingPos), lines = raw.split(/\r\n|\r|\n/), lineCount = lines.length - 1;
                 const matchLength = closingPos + openingLength;
-                if (openingLength === 1 && lines !== 0 || openingLength === 3 && this._lineMode) break;
-                this._line += lines;
+                if (openingLength === 1 && lineCount !== 0 || openingLength === 3 && this._lineMode) break;
+                this._line += lineCount;
+                const finalLineLength = lineCount === 0 ? 0 : lines[lines.length - 1].length + openingLength;
                 return {
-                  value: this._unescape(raw),
-                  matchLength
+                  value: this._unescape(raw, stringEscapeReplacements),
+                  matchLength,
+                  finalLineLength
                 };
               }
               closingPos++;
@@ -26262,7 +26398,8 @@ var rdfstore = (() => {
           }
           return {
             value: "",
-            matchLength: 0
+            matchLength: 0,
+            finalLineLength: 0
           };
         }
         // ### `_syntaxError` creates a syntax error for the given issue
@@ -26278,16 +26415,31 @@ var rdfstore = (() => {
         }
         // ### Strips off any starting UTF BOM mark.
         _readStartingBom(input) {
-          return input.startsWith("\uFEFF") ? input.substr(1) : input;
+          if (input.startsWith("\uFEFF")) {
+            this._linePosition = 1;
+            return input.slice(1);
+          }
+          return input;
         }
         // ## Public methods
         // ### `tokenize` starts the transformation of an N3 document into an array of tokens.
         // The input can be a string or a stream.
+        // Token ranges use one-based lines and zero-based, end-exclusive UTF-16 columns.
+        // Separator whitespace counts towards the next token's start, outside either range.
+        // Multiline tokens also have endLine; their end column is relative to that line.
         tokenize(input, callback) {
+          const tokenization = this._tokenization = {};
           this._line = 1;
+          this._linePosition = 0;
+          this._previousMarker = void 0;
+          this.previousToken = void 0;
+          this._literalClosingPos = 0;
+          this._input = void 0;
           if (typeof input === "string") {
             this._input = this._readStartingBom(input);
-            if (typeof callback === "function") queueMicrotask(() => this._tokenizeToEnd(callback, true));
+            if (typeof callback === "function") queueMicrotask(() => {
+              if (this._tokenization === tokenization) this._tokenizeToEnd(callback, true);
+            });
             else {
               const tokens = [];
               let error;
@@ -26299,7 +26451,7 @@ var rdfstore = (() => {
             this._pendingBuffer = null;
             if (typeof input.setEncoding === "function") input.setEncoding("utf8");
             input.on("data", (data) => {
-              if (this._input !== null && data.length !== 0) {
+              if (this._tokenization === tokenization && this._input !== null && data.length !== 0) {
                 if (this._pendingBuffer) {
                   data = _buffer.Buffer.concat([this._pendingBuffer, data]);
                   this._pendingBuffer = null;
@@ -26314,9 +26466,11 @@ var rdfstore = (() => {
               }
             });
             input.on("end", () => {
-              if (typeof this._input === "string") this._tokenizeToEnd(callback, true);
+              if (this._tokenization === tokenization && typeof this._input === "string") this._tokenizeToEnd(callback, true);
             });
-            input.on("error", callback);
+            input.on("error", (error) => {
+              if (this._tokenization === tokenization) callback(error);
+            });
           }
         }
       };
@@ -26389,6 +26543,15 @@ var rdfstore = (() => {
       };
       exports2.Term = Term;
       var NamedNode = class extends Term {
+        // ### Creates a named node
+        /**
+         * @deprecated Create named nodes through a data factory instead
+         * (`DataFactory.namedNode(iri)`), so that term validation can be applied;
+         * the constructor assumes an already-validated IRI.
+         */
+        constructor(iri) {
+          super(iri);
+        }
         // ### The term type of this term
         get termType() {
           return "NamedNode";
@@ -26396,6 +26559,16 @@ var rdfstore = (() => {
       };
       exports2.NamedNode = NamedNode;
       var Literal = class _Literal extends Term {
+        // ### Creates a literal
+        /**
+         * @deprecated Create literals through a data factory instead
+         * (`DataFactory.literal(value, languageOrDatatype)`), so that term
+         * validation can be applied; the constructor takes the internal
+         * id representation and assumes it is already valid.
+         */
+        constructor(id) {
+          super(id);
+        }
         // ### The term type of this term
         get termType() {
           return "Literal";
@@ -26451,6 +26624,12 @@ var rdfstore = (() => {
       };
       exports2.Literal = Literal;
       var BlankNode = class extends Term {
+        // ### Creates a blank node
+        /**
+         * @deprecated Create blank nodes through a data factory instead
+         * (`DataFactory.blankNode(name)`), so that term validation can be applied;
+         * the constructor assumes an already-validated name.
+         */
         constructor(name) {
           super(`_:${name}`);
         }
@@ -26465,6 +26644,12 @@ var rdfstore = (() => {
       };
       exports2.BlankNode = BlankNode;
       var Variable = class extends Term {
+        // ### Creates a variable
+        /**
+         * @deprecated Create variables through a data factory instead
+         * (`DataFactory.variable(name)`), so that term validation can be applied;
+         * the constructor assumes an already-validated name.
+         */
         constructor(name) {
           super(`?${name}`);
         }
@@ -26479,6 +26664,11 @@ var rdfstore = (() => {
       };
       exports2.Variable = Variable;
       var DefaultGraph = class extends Term {
+        // ### Creates the default graph
+        /**
+         * @deprecated Obtain the default graph through a data factory instead
+         * (`DataFactory.defaultGraph()`).
+         */
         constructor() {
           super("");
           return DEFAULTGRAPH || this;
@@ -26556,6 +26746,12 @@ var rdfstore = (() => {
         }
       }
       var Quad = class extends Term {
+        // ### Creates a quad
+        /**
+         * @deprecated Create quads through a data factory instead
+         * (`DataFactory.quad(subject, predicate, object, graph)`), so that term
+         * validation can be applied; the constructor assumes already-validated terms.
+         */
         constructor(subject, predicate, object, graph) {
           super("");
           this._subject = subject;
@@ -26621,6 +26817,9 @@ var rdfstore = (() => {
               datatype = xsd.double;
               if (!Number.isNaN(value)) value = value > 0 ? "INF" : "-INF";
             }
+          } else if (value instanceof Date && !Number.isNaN(value.getTime())) {
+            datatype = xsd.dateTime;
+            value = value.toISOString();
           }
         }
         return datatype === "" || datatype === xsd.string ? new Literal(`"${value}"`) : new Literal(`"${value}"^^${datatype}`);
@@ -26684,9 +26883,17 @@ var rdfstore = (() => {
           this._setBase(options.baseIRI);
           options.factory && initDataFactory(this, options.factory);
           const format = typeof options.format === "string" ? options.format.match(/\w*$/)[0].toLowerCase() : "", isTurtle = /turtle/.test(format), isTriG = /trig/.test(format), isNTriples = /triple/.test(format), isNQuads = /quad/.test(format), isN3 = this._n3Mode = /n3/.test(format), isLineMode = isNTriples || isNQuads;
+          this._emitCurrent = this._emit;
+          if (isN3) {
+            this._createQuad = this._createQuadInDirection;
+            this._emit = this._emitInDirection;
+            this._emitCurrent = this._emitCurrentInDirection;
+          }
           if (!(this._supportsNamedGraphs = !(isTurtle || isN3))) this._readPredicateOrNamedGraph = this._readPredicate;
           this._supportsQuads = !(isTurtle || isTriG || isNTriples || isN3);
           this._isImpliedBy = options.isImpliedBy;
+          this._implicitEmptyPrefix = !!options.implicitEmptyPrefix;
+          this._emptyFormulaAsTrue = !!options.emptyFormulaAsTrue;
           if (isLineMode) this._resolveRelativeIRI = (iri) => {
             return null;
           };
@@ -26724,21 +26931,41 @@ var rdfstore = (() => {
         // ### `_saveContext` stores the current parsing context
         // when entering a new scope (list, blank node, formula)
         _saveContext(type, graph, subject, predicate, object) {
-          const n3Mode = this._n3Mode;
-          this._contextStack.push({
+          if (!this._n3Mode) {
+            this._contextStack.push({
+              type,
+              subject,
+              predicate,
+              object,
+              graph
+            });
+            return;
+          }
+          const context = {
             type,
             subject,
             predicate,
             object,
             graph,
-            inverse: n3Mode ? this._inversePredicate : false,
-            blankPrefix: n3Mode ? this._prefixes._ : "",
-            quantified: n3Mode ? this._quantified : null
-          });
-          if (n3Mode) {
-            this._inversePredicate = false;
-            this._prefixes._ = this._graph ? `${this._graph.value}.` : ".";
-            this._quantified = Object.create(this._quantified);
+            inverse: this._inversePredicate,
+            expectOf: this._expectOf,
+            blankPrefix: this._prefixes._,
+            quantified: this._quantified,
+            emptyFormula: this._emptyFormula
+          };
+          if (type === "formula") {
+            context.prefixes = this._prefixes;
+            context.base = [this._base, this._basePath, this._baseRoot, this._baseScheme];
+            this._prefixes = Object.create(this._prefixes);
+          }
+          this._contextStack.push(context);
+          this._inversePredicate = false;
+          this._expectOf = false;
+          this._prefixes._ = this._graph ? `${this._graph.value}.` : ".";
+          this._quantified = Object.create(this._quantified);
+          if (type === "formula") {
+            this._subject = null;
+            this._emptyFormula = true;
           }
         }
         // ### `_restoreContext` restores the parent context
@@ -26752,8 +26979,13 @@ var rdfstore = (() => {
           this._graph = context.graph;
           if (this._n3Mode) {
             this._inversePredicate = context.inverse;
-            this._prefixes._ = context.blankPrefix;
+            this._expectOf = context.expectOf;
+            if (type === "formula") {
+              this._prefixes = context.prefixes;
+              [this._base, this._basePath, this._baseRoot, this._baseScheme] = context.base;
+            } else this._prefixes._ = context.blankPrefix;
             this._quantified = context.quantified;
+            this._emptyFormula = context.emptyFormula;
           }
         }
         // ### `_readBeforeTopContext` is called once only at the start of parsing.
@@ -26798,6 +27030,26 @@ var rdfstore = (() => {
               return this._readSubject(token);
           }
         }
+        // ### `_readInFormulaContext` reads a token at the statement level of a formula
+        _readInFormulaContext(token) {
+          switch (token.type) {
+            case "PREFIX":
+              this._sparqlStyle = true;
+            case "@prefix":
+              return this._readPrefix;
+            case "BASE":
+              this._sparqlStyle = true;
+            case "@base":
+              return this._readBaseIRI;
+            default:
+              return this._readSubject(token);
+          }
+        }
+        // ### `_getStatementReader` returns the reader for the current statement scope
+        _getStatementReader() {
+          const context = this._contextStack[this._contextStack.length - 1];
+          return context && context.type === "formula" ? this._readInFormulaContext : this._readInTopContext;
+        }
         // ### `_readEntity` reads an IRI, prefixed name, blank node, or variable
         _readEntity(token, quantifier) {
           let value;
@@ -26831,25 +27083,30 @@ var rdfstore = (() => {
           if (!quantifier && this._n3Mode && value.id in this._quantified) value = this._quantified[value.id];
           return value;
         }
+        // ### `_readList` starts reading a list in the subject, predicate, or object position
+        _readList(token, subject, predicate, object) {
+          const stack = this._contextStack, parent = stack.length && stack[stack.length - 1];
+          if (parent.type === "<<") {
+            return this._error("Unexpected list in reified triple", token);
+          }
+          this._saveContext("list", this._graph, subject, predicate, object);
+          this._subject = null;
+          return this._readListItem;
+        }
         // ### `_readSubject` reads a quad's subject
         _readSubject(token) {
           this._predicate = null;
+          if (token.type !== "}") this._emptyFormula = false;
           switch (token.type) {
             case "[":
               this._saveContext("blank", this._graph, this._subject = this._factory.blankNode(), null, null);
               return this._readBlankNodeHead;
             case "(":
-              const stack = this._contextStack, parent = stack.length && stack[stack.length - 1];
-              if (parent.type === "<<") {
-                return this._error("Unexpected list in reified triple", token);
-              }
-              this._saveContext("list", this._graph, this.RDF_NIL, null, null);
-              this._subject = null;
-              return this._readListItem;
+              return this._readList(token, this.RDF_NIL, null, null);
             case "{":
               if (!this._n3Mode) return this._error("Unexpected graph", token);
               this._saveContext("formula", this._graph, this._graph = this._factory.blankNode(), null, null);
-              return this._readSubject;
+              return this._readInFormulaContext;
             case "}":
               return this._readPunctuation(token);
             case "@forSome":
@@ -26869,8 +27126,10 @@ var rdfstore = (() => {
               if (token.prefix.length === 0) {
                 this._literalValue = token.value;
                 return this._completeSubjectLiteral;
-              } else this._subject = this._factory.literal(token.value, this._factory.namedNode(token.prefix));
-              break;
+              } else {
+                this._subject = this._factory.literal(token.value, this._factory.namedNode(token.prefix));
+                return this._getPathReader(this._readPredicateOrNamedGraph);
+              }
             case "<<(":
               if (!this._n3Mode) return this._error("Disallowed triple term as subject", token);
               this._saveContext("<<(", this._graph, null, null, null);
@@ -26889,58 +27148,93 @@ var rdfstore = (() => {
         // ### `_readPredicate` reads a quad's predicate
         _readPredicate(token) {
           const type = token.type;
+          let pathable = false;
           switch (type) {
             case "inverse":
               this._inversePredicate = true;
             case "abbreviation":
               this._predicate = this.ABBREVIATIONS[token.value];
               break;
+            case "has":
+              return this._readPredicateAfterVerb;
+            case "is":
+              this._inversePredicate = true;
+              this._expectOf = true;
+              return this._readPredicateAfterVerb;
+            case "inversePredicate":
+              this._inversePredicate = true;
+              return this._readPredicateAfterVerb;
             case ".":
             case "]":
             case "}":
             case "|}":
-              if (this._predicate === null) return this._error(`Unexpected ${type}`, token);
+              if (this._predicate === null && !this._n3Mode) return this._error(`Unexpected ${type}`, token);
               this._subject = null;
               return type === "]" ? this._readBlankNodeTail(token) : this._readPunctuation(token);
             case ";":
               return this._predicate !== null ? this._readPredicate : this._error("Expected predicate but got ;", token);
+            case "literal":
+              if (!this._n3Mode) return this._error("Unexpected literal", token);
+              if (token.prefix.length === 0) {
+                this._literalValue = token.value;
+                return this._completePredicateLiteral;
+              } else this._predicate = this._factory.literal(token.value, this._factory.namedNode(token.prefix));
+              pathable = true;
+              break;
+            case "(":
+              return this._n3Mode ? this._readList(token, this._subject, this.RDF_NIL, null) : this._error(`Expected entity but got ${type}`, token);
             case "[":
               if (this._n3Mode) {
                 this._saveContext("blank", this._graph, this._subject, this._subject = this._factory.blankNode(), null);
                 return this._readBlankNodeHead;
               }
+              return this._error("Disallowed blank node as predicate", token);
+            case "{":
+              if (this._n3Mode) {
+                this._saveContext("formula", this._graph, this._subject, this._graph = this._factory.blankNode(), null);
+                return this._readSubject;
+              }
+              return this._readEntity(token);
             case "blank":
               if (!this._n3Mode) return this._error("Disallowed blank node as predicate", token);
             default:
               if ((this._predicate = this._readEntity(token)) === void 0) return;
+              pathable = this._n3Mode;
           }
           this._validAnnotation = true;
-          return this._readObject;
+          return pathable ? this._getPathReader(this._readObject, "predicate") : this._readObject;
+        }
+        // ### `_readPredicateAfterVerb` reads the predicate following `has` or `is`
+        _readPredicateAfterVerb(token) {
+          if (token.type === "has" || token.type === "is" || token.type === "of" || token.type === "inversePredicate") return this._error(`Expected expression but got ${token.type}`, token);
+          return this._readPredicate(token);
         }
         // ### `_readObject` reads a quad's object
         _readObject(token) {
+          if (this._expectOf) {
+            if (token.type !== "of") return this._error(`Expected of but got ${token.type}`, token);
+            this._expectOf = false;
+            return this._readObject;
+          }
           switch (token.type) {
             case "literal":
               if (token.prefix.length === 0) {
                 this._literalValue = token.value;
                 return this._readDataTypeOrLang;
-              } else this._object = this._factory.literal(token.value, this._factory.namedNode(token.prefix));
+              } else {
+                this._object = this._factory.literal(token.value, this._factory.namedNode(token.prefix));
+                if (this._n3Mode) return this._getPathReader(this._getContextEndReader());
+              }
               break;
             case "[":
               this._saveContext("blank", this._graph, this._subject, this._predicate, this._subject = this._factory.blankNode());
               return this._readBlankNodeHead;
             case "(":
-              const stack = this._contextStack, parent = stack.length && stack[stack.length - 1];
-              if (parent.type === "<<") {
-                return this._error("Unexpected list in reified triple", token);
-              }
-              this._saveContext("list", this._graph, this._subject, this._predicate, this.RDF_NIL);
-              this._subject = null;
-              return this._readListItem;
+              return this._readList(token, this._subject, this._predicate, this.RDF_NIL);
             case "{":
               if (!this._n3Mode) return this._error("Unexpected graph", token);
               this._saveContext("formula", this._graph, this._subject, this._predicate, this._graph = this._factory.blankNode());
-              return this._readSubject;
+              return this._readInFormulaContext;
             case "<<(":
               this._saveContext("<<(", this._graph, this._subject, this._predicate, null);
               this._graph = null;
@@ -26975,18 +27269,38 @@ var rdfstore = (() => {
             if (parentParent.type === "<<") {
               return this._error("Unexpected compound blank node expression in reified triple", token);
             }
+            if (token.type === "id") return this._readIriPropertyListId;
             this._predicate = null;
             return this._readPredicate(token);
           }
         }
+        // ### `_readIriPropertyListId` replaces a property list's blank node with its IRI
+        _readIriPropertyListId(token) {
+          const iri = this._readEntity(token);
+          if (iri === void 0) return;
+          if (iri.termType !== "NamedNode") return this._error(`Expected IRI after id but got ${token.type}`, token);
+          const placeholder = this._subject;
+          this._subject = iri;
+          const context = this._contextStack[this._contextStack.length - 1];
+          if (context.subject === placeholder) context.subject = iri;
+          if (context.predicate === placeholder) context.predicate = iri;
+          if (context.object === placeholder) context.object = iri;
+          this._predicate = null;
+          return this._readIriPropertyListPredicate;
+        }
+        // ### `_readIriPropertyListPredicate` requires properties after an IRI property list ID
+        _readIriPropertyListPredicate(token) {
+          if (token.type === ";" || token.type === "]" || token.type === "." || token.type === "}") return this._error(`Expected predicate but got ${token.type}`, token);
+          return this._readPredicate(token);
+        }
         // ### `_readBlankNodeTail` reads the end of a blank node
         _readBlankNodeTail(token) {
           if (token.type !== "]") return this._readBlankNodePunctuation(token);
-          if (this._subject !== null) this._emit(this._subject, this._predicate, this._object, this._graph);
+          if (this._subject !== null) this._emitCurrent(this._subject, this._predicate, this._object, this._graph);
           const empty = this._predicate === null;
           this._restoreContext("blank", token);
           if (this._object !== null) return this._getContextEndReader();
-          else if (this._predicate !== null) return this._readObject;
+          else if (this._predicate !== null) return this._getPathReader(this._readObject, "predicate");
           else
             return empty ? this._readPredicateOrNamedGraph : this._readPredicateAfterBlank;
         }
@@ -27016,12 +27330,24 @@ var rdfstore = (() => {
               break;
             case ")":
               this._restoreContext("list", token);
-              if (stack.length !== 0 && stack[stack.length - 1].type === "list") this._emit(this._subject, this._predicate, this._object, this._graph);
+              if (stack.length !== 0 && stack[stack.length - 1].type === "list") {
+                if (this._n3Mode) {
+                  if (previousList !== null) this._emit(previousList, this.RDF_REST, this.RDF_NIL, this._graph);
+                  this._saveContext("item", this._graph, this._subject, this._predicate, this._object);
+                  this._subject = this._object, this._predicate = null;
+                  return this._getPathReader(this._readListItem);
+                }
+                this._emit(this._subject, this._predicate, this._object, this._graph);
+              }
               if (this._predicate === null) {
-                next = this._readPredicate;
+                next = this._n3Mode ? this._getPathReader(this._readPredicate) : this._readPredicate;
                 if (this._subject === this.RDF_NIL) return next;
+              } else if (this._object === null) {
+                next = this._getPathReader(this._readObject, "predicate");
+                if (this._predicate === this.RDF_NIL) return next;
               } else {
                 next = this._getContextEndReader();
+                if (this._n3Mode) next = this._getPathReader(next);
                 if (this._object === this.RDF_NIL) return next;
               }
               list = this.RDF_NIL;
@@ -27037,8 +27363,23 @@ var rdfstore = (() => {
               break;
             case "{":
               if (!this._n3Mode) return this._error("Unexpected graph", token);
-              this._saveContext("formula", this._graph, this._subject, this._predicate, this._graph = this._factory.blankNode());
-              return this._readSubject;
+              list = this._factory.blankNode();
+              item = this._factory.blankNode();
+              if (previousList === null) {
+                if (parent.predicate === null) parent.subject = list;
+                else parent.object = list;
+              } else {
+                this._emit(previousList, this.RDF_REST, list, this._graph);
+              }
+              this._emit(list, this.RDF_FIRST, item, this._graph);
+              this._saveContext("formula", this._graph, list, this.RDF_FIRST, this._graph = item);
+              this._subject = null;
+              return this._readInFormulaContext;
+            case "<<(":
+              this._saveContext("<<(", this._graph, null, null, null);
+              this._graph = null;
+              next = this._readSubject;
+              break;
             case "<<":
               this._saveContext("<<", this._graph, null, null, null);
               this._graph = null;
@@ -27048,15 +27389,16 @@ var rdfstore = (() => {
               if ((item = this._readEntity(token)) === void 0) return;
           }
           if (list === null) this._subject = list = this._factory.blankNode();
-          if (token.type === "<<") stack[stack.length - 1].subject = this._subject;
+          if (token.type === "<<" || token.type === "<<(") stack[stack.length - 1].subject = this._subject;
           if (previousList === null) {
             if (parent.predicate === null) parent.subject = list;
+            else if (parent.object === null) parent.predicate = list;
             else parent.object = list;
           } else {
             this._emit(previousList, this.RDF_REST, list, this._graph);
           }
           if (item !== null) {
-            if (this._n3Mode && (token.type === "IRI" || token.type === "prefixed")) {
+            if (this._n3Mode && (token.type === "IRI" || token.type === "prefixed" || token.type === "var" || token.type === "blank" || token.type === "literal")) {
               this._saveContext("item", this._graph, list, this.RDF_FIRST, item);
               this._subject = item, this._predicate = null;
               return this._getPathReader(this._readListItem);
@@ -27074,9 +27416,9 @@ var rdfstore = (() => {
           return this._completeObjectLiteral(token, true);
         }
         // ### `_completeLiteral` completes a literal with an optional datatype or language
+        // Defers possible direction tags without allocating bound callbacks.
         _completeLiteral(token, component) {
-          let literal = this._factory.literal(this._literalValue);
-          let readCb;
+          let literal, readCb = false;
           switch (token.type) {
             // Create a datatyped literal
             case "type":
@@ -27095,8 +27437,12 @@ var rdfstore = (() => {
               literal = this._factory.literal(this._literalValue, token.value);
               this._literalLanguage = token.value;
               token = null;
-              readCb = this._readDirCode.bind(this, component);
+              this._literalComponent = component;
+              readCb = true;
               break;
+            // Create a simple string literal by default
+            default:
+              literal = this._factory.literal(this._literalValue);
           }
           return {
             token,
@@ -27104,36 +27450,76 @@ var rdfstore = (() => {
             readCb
           };
         }
-        _readDirCode(component, listItem, token) {
+        // ### `_readDirCode` reads an optional directional language tag
+        _readDirCode(token) {
+          const component = this._literalComponent, listItem = this._literalListItem;
           if (token.type === "dircode") {
             const term = this._factory.literal(this._literalValue, {
               language: this._literalLanguage,
               direction: token.value
             });
             if (component === "subject") this._subject = term;
+            else if (component === "predicate") this._predicate = term;
             else this._object = term;
             this._literalLanguage = void 0;
             token = null;
           }
-          if (component === "subject") return token === null ? this._readPredicateOrNamedGraph : this._readPredicateOrNamedGraph(token);
+          if (component === "subject" || component === "predicate") {
+            const next = component === "subject" ? this._readPredicateOrNamedGraph : this._readObject;
+            const reader = this._getPathEndReader(token, next, component);
+            return reader || next.call(this, token);
+          }
           return this._completeObjectLiteralPost(token, listItem);
+        }
+        // Completes a literal in subject or predicate position
+        _completeTermLiteral(token, component) {
+          const completed = this._completeLiteral(token, component);
+          if (!completed) return;
+          let next;
+          if (component === "subject") {
+            this._subject = completed.literal;
+            next = this._readPredicateOrNamedGraph;
+          } else {
+            this._predicate = completed.literal;
+            this._validAnnotation = true;
+            next = this._readObject;
+          }
+          if (completed.readCb) {
+            this._literalListItem = false;
+            return this._readDirCode;
+          }
+          const reader = this._getPathEndReader(completed.token, next, component);
+          if (reader) return reader;
+          return next.call(this, completed.token);
         }
         // Completes a literal in subject position
         _completeSubjectLiteral(token) {
-          const completed = this._completeLiteral(token, "subject");
-          this._subject = completed.literal;
-          if (completed.readCb) return completed.readCb.bind(this, false);
-          return this._readPredicateOrNamedGraph;
+          return this._completeTermLiteral(token, "subject");
+        }
+        // Completes a literal in predicate position
+        _completePredicateLiteral(token) {
+          return this._completeTermLiteral(token, "predicate");
         }
         // Completes a literal in object position
         _completeObjectLiteral(token, listItem) {
           const completed = this._completeLiteral(token, "object");
           if (!completed) return;
           this._object = completed.literal;
-          if (completed.readCb) return completed.readCb.bind(this, listItem);
+          if (completed.readCb) {
+            this._literalListItem = listItem;
+            return this._readDirCode;
+          }
           return this._completeObjectLiteralPost(completed.token, listItem);
         }
         _completeObjectLiteralPost(token, listItem) {
+          if (this._n3Mode && (token === null || token.type === "!" || token.type === "^")) {
+            if (listItem) {
+              this._saveContext("item", this._graph, this._subject, this.RDF_FIRST, this._object);
+              this._subject = this._object, this._predicate = null;
+              return this._getPathEndReader(token, this._readListItem);
+            }
+            return this._getPathEndReader(token, this._getContextEndReader());
+          }
           if (listItem) this._emit(this._subject, this.RDF_FIRST, this._object, this._graph);
           if (token === null) return this._getContextEndReader();
           else {
@@ -27144,9 +27530,17 @@ var rdfstore = (() => {
         // ### `_readFormulaTail` reads the end of a formula
         _readFormulaTail(token) {
           if (token.type !== "}") return this._readPunctuation(token);
-          if (this._subject !== null) this._emit(this._subject, this._predicate, this._object, this._graph);
+          if (this._subject !== null) this._emitCurrent(this._subject, this._predicate, this._object, this._graph);
+          const formula = this._graph, empty = this._emptyFormula;
           this._restoreContext("formula", token);
-          return this._object === null ? this._readPredicate : this._getContextEndReader();
+          if (empty && this._emptyFormulaAsTrue) {
+            if (this._subject === formula) this._subject = this.N3_TRUE;
+            else if (this._predicate === formula) this._predicate = this.N3_TRUE;
+            else this._object = this.N3_TRUE;
+          }
+          if (this._object !== null) return this._getPathReader(this._getContextEndReader(), "object");
+          if (this._predicate !== null) return this._getPathReader(this._readObject, "predicate");
+          return this._getPathReader(this._readPredicate, "subject");
         }
         // ### `_readPunctuation` reads punctuation between quads or quad parts
         _readPunctuation(token) {
@@ -27162,11 +27556,12 @@ var rdfstore = (() => {
             case ".":
               this._subject = null;
               this._tripleTerm = null;
-              next = this._contextStack.length ? this._readSubject : this._readInTopContext;
+              next = this._getStatementReader();
               if (inversePredicate) this._inversePredicate = false;
               break;
             // Semicolon means the subject is shared; predicate and object are different
             case ";":
+              if (inversePredicate) this._inversePredicate = false;
               next = this._readPredicate;
               break;
             // Comma means both the subject and predicate are shared; the object is different
@@ -27175,12 +27570,15 @@ var rdfstore = (() => {
               break;
             // ~ is allowed in the annotation syntax
             case "~":
+              if (subject !== null) this._tripleTerm = null;
               next = this._readReifierInAnnotation;
               startingAnnotation = true;
               break;
             // {| means that the current triple is annotated with predicate-object pairs.
             case "{|":
+              if (subject !== null) this._tripleTerm = null;
               this._subject = this._readTripleTerm();
+              this._inversePredicate = false;
               this._validAnnotation = false;
               startingAnnotation = true;
               next = this._readPredicate;
@@ -27191,7 +27589,8 @@ var rdfstore = (() => {
               if (!this._validAnnotation) return this._error("Annotation block can not be empty", token);
               this._subject = null;
               this._annotation = false;
-              next = this._readPunctuation;
+              this._inversePredicate = false;
+              next = this._getContextEndReader();
               break;
             default:
               if (this._supportsQuads && this._graph === null && (graph = this._readEntity(token)) !== void 0) {
@@ -27202,8 +27601,7 @@ var rdfstore = (() => {
           }
           if (subject !== null && (!startingAnnotation || startingAnnotation && !this._annotation)) {
             const predicate = this._predicate, object = this._object;
-            if (!inversePredicate) this._emit(subject, predicate, object, graph);
-            else this._emit(object, predicate, subject, graph);
+            this._emit(subject, predicate, object, graph, inversePredicate);
           }
           if (startingAnnotation) {
             this._annotation = true;
@@ -27212,20 +27610,31 @@ var rdfstore = (() => {
         }
         // ### `_readBlankNodePunctuation` reads punctuation in a blank node
         _readBlankNodePunctuation(token) {
-          let next;
+          let next, resetInversePredicate = false;
           switch (token.type) {
             // Semicolon means the subject is shared; predicate and object are different
             case ";":
+              resetInversePredicate = this._inversePredicate;
               next = this._readPredicate;
               break;
             // Comma means both the subject and predicate are shared; the object is different
             case ",":
               next = this._readObject;
               break;
+            // Annotation syntax applies to the quad just read, exactly as it does
+            // outside of a blank node property list.  `|}` arrives here too, because
+            // the objects inside the annotation block are themselves read within the
+            // enclosing blank node context.
+            case "~":
+            case "{|":
+            case "|}":
+              return this._readPunctuation(token);
             default:
               return this._error(`Expected punctuation to follow "${this._object.id}"`, token);
           }
-          this._emit(this._subject, this._predicate, this._object, this._graph);
+          if (this._subject === null) return this._error("Expected ] to follow annotation", token);
+          this._emitCurrent(this._subject, this._predicate, this._object, this._graph);
+          if (resetInversePredicate) this._inversePredicate = false;
           return next;
         }
         // ### `_readQuadPunctuation` reads punctuation after a quad
@@ -27289,10 +27698,10 @@ var rdfstore = (() => {
         _readDeclarationPunctuation(token) {
           if (this._sparqlStyle) {
             this._sparqlStyle = false;
-            return this._readInTopContext(token);
+            return this._getStatementReader().call(this, token);
           }
           if (token.type !== ".") return this._error("Expected declaration to end with a dot", token);
-          return this._readInTopContext;
+          return this._getStatementReader();
         }
         // Reads a list of quantified symbols from a @forSome or @forAll statement
         _readQuantifierList(token) {
@@ -27325,9 +27734,17 @@ var rdfstore = (() => {
           }
         }
         // ### `_getPathReader` reads a potential path and then resumes with the given function
-        _getPathReader(afterPath) {
+        _getPathReader(afterPath, position) {
           this._afterPath = afterPath;
+          this._pathPosition = position || (this._predicate === null ? "subject" : "object");
           return this._readPath;
+        }
+        // ### `_getPathEndReader` continues reading after a term that might start a path,
+        // given the pending token that follows the term (or `null` if it was consumed)
+        _getPathEndReader(token, afterPath, position) {
+          if (token !== null && token.type !== "!" && token.type !== "^") return null;
+          const reader = this._getPathReader(afterPath, position);
+          return token === null ? reader : reader.call(this, token);
         }
         // ### `_readPath` reads a potential path
         _readPath(token) {
@@ -27340,13 +27757,16 @@ var rdfstore = (() => {
               return this._readBackwardPath;
             // Not a path; resume reading where we left off
             default:
+              const afterPath = this._afterPath;
               const stack = this._contextStack, parent = stack.length && stack[stack.length - 1];
               if (parent && parent.type === "item") {
                 const item = this._subject;
                 this._restoreContext("item", token);
                 this._emit(this._subject, this.RDF_FIRST, item, this._graph);
               }
-              return this._afterPath(token);
+              this._afterPath = null;
+              this._pathPosition = null;
+              return afterPath.call(this, token);
           }
         }
         // ### `_readForwardPath` reads a '!' path
@@ -27354,7 +27774,8 @@ var rdfstore = (() => {
           let subject, predicate;
           const object = this._factory.blankNode();
           if ((predicate = this._readEntity(token)) === void 0) return;
-          if (this._predicate === null) subject = this._subject, this._subject = object;
+          if (this._pathPosition === "subject") subject = this._subject, this._subject = object;
+          else if (this._pathPosition === "predicate") subject = this._predicate, this._predicate = object;
           else subject = this._object, this._object = object;
           this._emit(subject, predicate, object, this._graph);
           return this._readPath;
@@ -27364,7 +27785,8 @@ var rdfstore = (() => {
           const subject = this._factory.blankNode();
           let predicate, object;
           if ((predicate = this._readEntity(token)) === void 0) return;
-          if (this._predicate === null) object = this._subject, this._subject = subject;
+          if (this._pathPosition === "subject") object = this._subject, this._subject = subject;
+          else if (this._pathPosition === "predicate") object = this._predicate, this._predicate = subject;
           else object = this._object, this._object = subject;
           this._emit(subject, predicate, object, this._graph);
           return this._readPath;
@@ -27372,8 +27794,13 @@ var rdfstore = (() => {
         // ### `_readTripleTermTail` reads the end of a triple term
         _readTripleTermTail(token) {
           if (token.type !== ")>>") return this._error(`Expected )>> but got ${token.type}`, token);
-          const quad = this._factory.quad(this._subject, this._predicate, this._object, this._graph || this.DEFAULTGRAPH);
+          const quad = this._createQuad(this._subject, this._predicate, this._object, this._graph, this._inversePredicate);
           this._restoreContext("<<(", token);
+          const stack = this._contextStack, parent = stack.length && stack[stack.length - 1];
+          if (parent && parent.type === "list") {
+            this._emit(this._subject, this.RDF_FIRST, quad, this._graph);
+            return this._getContextEndReader();
+          }
           if (this._subject === null) {
             this._subject = quad;
             return this._readPredicate;
@@ -27423,19 +27850,41 @@ var rdfstore = (() => {
         _readReifierInAnnotation(token) {
           if (token.type === "IRI" || token.type === "typeIRI" || token.type === "type" || token.type === "prefixed" || token.type === "blank" || token.type === "var") {
             this._reifier = this._readEntity(token);
-            return this._readPunctuation;
+            return this._readAnnotationBlockOrPunctuation;
           }
           this._readTripleTerm();
           this._subject = null;
-          return this._readPunctuation(token);
+          return this._getContextEndReader().call(this, token);
+        }
+        // ### `_readAnnotationBlockOrPunctuation` reads what follows an explicit reifier:
+        // either an annotation block, which reuses the reifier as its subject,
+        // or punctuation, in which case the reifier stands alone and its triple
+        // term still needs to be asserted here.
+        _readAnnotationBlockOrPunctuation(token) {
+          if (token.type === "{|") return this._readPunctuation(token);
+          this._readTripleTerm();
+          this._annotation = false;
+          this._tripleTerm = null;
+          switch (token.type) {
+            // The subject stays shared with the next predicate-object pair
+            case ";":
+              this._inversePredicate = false;
+              return this._readPredicate;
+            // The subject and predicate stay shared with the next object
+            case ",":
+              return this._readObject;
+            default:
+              this._subject = null;
+              return this._getContextEndReader().call(this, token);
+          }
         }
         _readTripleTerm() {
           const stack = this._contextStack, parent = stack.length && stack[stack.length - 1];
           const parentGraph = parent ? parent.graph : void 0;
           const reifier = this._reifier || this._factory.blankNode();
           this._reifier = null;
-          this._tripleTerm = this._tripleTerm || this._factory.quad(this._subject, this._predicate, this._object);
-          this._emit(reifier, this.RDF_REIFIES, this._tripleTerm, parentGraph || this.DEFAULTGRAPH);
+          this._tripleTerm = this._tripleTerm || this._createQuad(this._subject, this._predicate, this._object, null, this._inversePredicate);
+          this._emit(reifier, this.RDF_REIFIES, this._tripleTerm, parentGraph || this._graph || this.DEFAULTGRAPH);
           return reifier;
         }
         // ### `_getContextEndReader` gets the next reader function at the end of a context
@@ -27455,13 +27904,31 @@ var rdfstore = (() => {
               return this._readReifiedTripleTailOrReifier;
           }
         }
+        // ### `_createQuad` creates a quad
+        _createQuad(subject, predicate, object, graph) {
+          return this._factory.quad(subject, predicate, object, graph || this.DEFAULTGRAPH);
+        }
+        // ### `_createQuadInDirection` creates a quad in the active predicate direction
+        _createQuadInDirection(subject, predicate, object, graph, inversePredicate) {
+          return inversePredicate ? this._factory.quad(object, predicate, subject, graph || this.DEFAULTGRAPH) : this._factory.quad(subject, predicate, object, graph || this.DEFAULTGRAPH);
+        }
+        // ### `_emitInDirection` sends a quad in the active predicate direction
+        _emitInDirection(subject, predicate, object, graph, inversePredicate) {
+          this._callback(null, this._createQuad(subject, predicate, object, graph, inversePredicate));
+        }
+        // ### `_emitCurrentInDirection` sends a quad in the current predicate direction
+        _emitCurrentInDirection(subject, predicate, object, graph) {
+          this._callback(null, this._createQuad(subject, predicate, object, graph, this._inversePredicate));
+        }
         // ### `_emit` sends a quad through the callback
         _emit(subject, predicate, object, graph) {
           this._callback(null, this._factory.quad(subject, predicate, object, graph || this.DEFAULTGRAPH));
         }
         // ### `_error` emits an error message through the callback
         _error(message, token) {
-          const err = new Error(`${message} on line ${token.line}.`);
+          const suffix = ` on line ${token.line}.`;
+          if (message.length + suffix.length > 200) message = `${message.slice(0, 199 - suffix.length)}\u2026`;
+          const err = new Error(`${message}${suffix}`);
           err.context = {
             token,
             line: token.line,
@@ -27561,10 +28028,13 @@ var rdfstore = (() => {
           this._sparqlStyle = false;
           this._prefixes = /* @__PURE__ */ Object.create(null);
           this._prefixes._ = this._blankNodePrefix ? this._blankNodePrefix.substr(2) : `b${blankNodePrefix++}_`;
+          if (this._n3Mode && this._implicitEmptyPrefix && this._base) this._prefixes[""] = this._resolveIRI("#");
           this._prefixCallback = onPrefix || noop;
           this._versionCallback = onVersion || noop;
           this._inversePredicate = false;
+          this._expectOf = false;
           this._quantified = /* @__PURE__ */ Object.create(null);
+          this._emptyFormula = false;
           if (!onQuad) {
             const quads = [];
             let error;
@@ -27607,6 +28077,7 @@ var rdfstore = (() => {
         parser.RDF_REIFIES = factory.namedNode(_IRIs.default.rdf.reifies);
         parser.N3_FORALL = factory.namedNode(_IRIs.default.r.forAll);
         parser.N3_FORSOME = factory.namedNode(_IRIs.default.r.forSome);
+        parser.N3_TRUE = factory.literal("true", factory.namedNode(_IRIs.default.xsd.boolean));
         parser.ABBREVIATIONS = {
           "a": factory.namedNode(_IRIs.default.rdf.type),
           "=": factory.namedNode(_IRIs.default.owl.sameAs),
@@ -27827,6 +28298,7 @@ var rdfstore = (() => {
       var N3Writer = class {
         constructor(outputStream, options) {
           this._prefixRegex = /$0^/;
+          this._hasPrefixes = false;
           if (outputStream && typeof outputStream.write !== "function") options = outputStream, outputStream = null;
           options = options || {};
           this._lists = options.lists;
@@ -27851,10 +28323,12 @@ var rdfstore = (() => {
             this._lineMode = false;
             this._graph = DEFAULTGRAPH;
             this._prefixIRIs = /* @__PURE__ */ Object.create(null);
-            options.prefixes && this.addPrefixes(options.prefixes);
             if (options.baseIRI) {
               this._baseIri = new _BaseIRI.default(options.baseIRI);
+              if (options.writeBase) this._write(`@base <${options.baseIRI}>.
+`);
             }
+            options.prefixes && this.addPrefixes(options.prefixes);
           } else {
             this._lineMode = true;
             this._writeQuad = this._writeQuadLine;
@@ -27872,14 +28346,14 @@ var rdfstore = (() => {
         // ### `_writeQuad` writes the quad to the output stream
         _writeQuad(subject, predicate, object, graph, done) {
           try {
-            if (!graph.equals(this._graph)) {
+            if (graph !== this._graph && (!graph.equals(this._graph) || graph.termType !== this._graph.termType)) {
               this._write((this._subject === null ? "" : this._inDefaultGraph ? ".\n" : "\n}\n") + (DEFAULTGRAPH.equals(graph) ? "" : `${this._encodeIriOrBlank(graph)} {
 `));
               this._graph = graph;
               this._subject = null;
             }
-            if (subject.equals(this._subject)) {
-              if (predicate.equals(this._predicate)) this._write(`, ${this._encodeObject(object)}`, done);
+            if (subject === this._subject || subject.equals(this._subject)) {
+              if (predicate === this._predicate || predicate.equals(this._predicate)) this._write(`, ${this._encodeObject(object)}`, done);
               else this._write(`;
     ${this._encodePredicate(this._predicate = predicate)} ${this._encodeObject(object)}`, done);
             } else this._write(`${(this._subject === null ? "" : ".\n") + this._encodeSubject(this._subject = subject)} ${this._encodePredicate(this._predicate = predicate)} ${this._encodeObject(object)}`, done);
@@ -27894,7 +28368,7 @@ var rdfstore = (() => {
         }
         // ### `quadToString` serializes a quad as a string
         quadToString(subject, predicate, object, graph) {
-          return `${this._encodeSubject(subject)} ${this._encodeIriOrBlank(predicate)} ${this._encodeObject(object)}${graph && graph.value ? ` ${this._encodeIriOrBlank(graph)} .
+          return `${this._encodeSubject(subject)} ${this._encodeIriOrBlank(predicate)} ${this._encodeObject(object)}${graph && !(0, _N3Util.isDefaultGraph)(graph) ? ` ${this._encodeIriOrBlank(graph)} .
 ` : " .\n"}`;
         }
         // ### `quadsToString` serializes an array of quads as a string
@@ -27911,22 +28385,26 @@ var rdfstore = (() => {
         _encodeIriOrBlank(entity) {
           if (entity.termType !== "NamedNode") {
             if (this._lists && entity.value in this._lists) entity = this.list(this._lists[entity.value]);
-            return "id" in entity ? entity.id : `_:${entity.value}`;
+            return entity.termType === "Variable" ? `?${entity.value}` : "id" in entity ? entity.id : `_:${entity.value}`;
           }
           let iri = entity.value;
           if (this._baseIri) {
             iri = this._baseIri.toRelative(iri);
           }
           if (escape.test(iri)) iri = iri.replace(escapeAll, characterReplacer);
-          const prefixMatch = this._prefixRegex.exec(iri);
+          const prefixMatch = this._hasPrefixes ? this._prefixRegex.exec(iri) : null;
           return !prefixMatch ? `<${iri}>` : !prefixMatch[1] ? iri : this._prefixIRIs[prefixMatch[1]] + prefixMatch[2];
         }
         // ### `_encodeLiteral` represents a literal
         _encodeLiteral(literal) {
           let value = literal.value;
           if (escape.test(value)) value = value.replace(escapeAll, characterReplacer);
-          const direction = literal.direction ? `--${literal.direction}` : "";
-          if (literal.language) return `"${value}"@${literal.language}${direction}`;
+          const language = literal.language;
+          if (language) {
+            const literalDirection = literal.direction;
+            const direction = literalDirection ? `--${literalDirection}` : "";
+            return `"${value}"@${language}${direction}`;
+          }
           if (this._lineMode) {
             if (literal.datatype.value === xsd.string) return `"${value}"`;
           } else {
@@ -28010,13 +28488,14 @@ var rdfstore = (() => {
 `);
           }
           if (hasPrefixes) {
+            this._hasPrefixes = true;
             let IRIlist = "", prefixList = "";
             for (const prefixIRI in this._prefixIRIs) {
               IRIlist += IRIlist ? `|${prefixIRI}` : prefixIRI;
               prefixList += (prefixList ? "|" : "") + this._prefixIRIs[prefixIRI];
             }
             IRIlist = (0, _Util.escapeRegex)(IRIlist, /[\]\/\(\)\*\+\?\.\\\$]/g, "\\$&");
-            this._prefixRegex = new RegExp(`^(?:${prefixList})[^/]*$|^(${IRIlist})([_a-zA-Z0-9][\\-_a-zA-Z0-9]*)$`);
+            this._prefixRegex = new RegExp(`^(?:${prefixList})[^/]*$|^(${IRIlist})([_a-zA-Z0-9](?:\\.?[\\-_a-zA-Z0-9])*)$`);
           }
           this._write(hasPrefixes ? "\n" : "", done);
         }
@@ -34401,42 +34880,60 @@ var rdfstore = (() => {
         })(e, t);
       }
       var ITERATOR = /* @__PURE__ */ Symbol("iter");
+      var SIZE = /* @__PURE__ */ Symbol("size");
+      function hasInIndex(index0, key0, key1, key2) {
+        const index1 = index0 && index0[key0];
+        const index2 = index1 && index1[key1];
+        return !!index2 && key2 in index2;
+      }
       function merge(target, source, depth = 4) {
-        if (depth === 0) return Object.assign(target, source);
-        for (const key in source) target[key] = merge(target[key] || /* @__PURE__ */ Object.create(null), source[key], depth - 1);
+        let size2 = target[SIZE] || 0;
+        for (const key in source) {
+          if (!(key in target)) {
+            size2++;
+            target[key] = depth === 0 ? null : merge(/* @__PURE__ */ Object.create(null), source[key], depth - 1);
+          } else if (depth !== 0) target[key] = merge(target[key], source[key], depth - 1);
+        }
+        if (depth <= 2) target[SIZE] = size2;
         return target;
       }
       function intersect(s1, s2, depth = 4) {
-        let target = false;
+        let target = false, size2 = 0;
+        if (depth <= 2 && s2[SIZE] < s1[SIZE]) [s1, s2] = [s2, s1];
         for (const key in s1) {
           if (key in s2) {
             const intersection = depth === 0 ? null : intersect(s1[key], s2[key], depth - 1);
             if (intersection !== false) {
               target = target || /* @__PURE__ */ Object.create(null);
               target[key] = intersection;
+              size2++;
             } else if (depth === 3) {
               return false;
             }
           }
         }
+        if (depth <= 2 && target) target[SIZE] = size2;
         return target;
       }
       function difference(s1, s2, depth = 4) {
-        let target = false;
+        let target = false, size2 = 0;
         for (const key in s1) {
           if (!(key in s2)) {
             target = target || /* @__PURE__ */ Object.create(null);
             target[key] = depth === 0 ? null : merge({}, s1[key], depth - 1);
+            size2++;
           } else if (depth !== 0) {
             const diff = difference(s1[key], s2[key], depth - 1);
             if (diff !== false) {
               target = target || /* @__PURE__ */ Object.create(null);
               target[key] = diff;
+              size2++;
             } else if (depth === 3) {
               return false;
             }
           }
         }
+        if (depth <= 2 && target) target[SIZE] = size2;
         return target;
       }
       var N3EntityIndex = class {
@@ -34510,37 +35007,52 @@ var rdfstore = (() => {
           size2 = 0;
           const graphs = this._graphs;
           let subjects, subject;
-          for (const graphKey in graphs) for (const subjectKey in subjects = graphs[graphKey].subjects) for (const predicateKey in subject = subjects[subjectKey]) size2 += Object.keys(subject[predicateKey]).length;
+          for (const graphKey in graphs) for (const subjectKey in subjects = graphs[graphKey].subjects) for (const predicateKey in subject = subjects[subjectKey]) size2 += subject[predicateKey][SIZE];
           return this._size = size2;
         }
         // ## Private methods
         // ### `_addToIndex` adds a quad to a three-layered index.
         // Returns if the index has changed, if the entry did not already exist.
         _addToIndex(index0, key0, key1, key2) {
-          const index1 = index0[key0] || (index0[key0] = {});
-          const index2 = index1[key1] || (index1[key1] = {});
+          let index1 = index0[key0];
+          if (!index1) {
+            index0[key0] = index1 = {
+              [SIZE]: 0
+            };
+            index0[SIZE]++;
+          }
+          let index2 = index1[key1];
+          if (!index2) {
+            index1[key1] = index2 = {
+              [SIZE]: 0
+            };
+            index1[SIZE]++;
+          }
           const existed = key2 in index2;
-          if (!existed) index2[key2] = null;
+          if (!existed) {
+            index2[key2] = null;
+            index2[SIZE]++;
+          }
           return !existed;
         }
         // ### `_removeFromIndex` removes a quad from a three-layered index
         _removeFromIndex(index0, key0, key1, key2) {
           const index1 = index0[key0], index2 = index1[key1];
           delete index2[key2];
-          for (const key in index2) return;
+          if (--index2[SIZE] !== 0) return;
           delete index1[key1];
-          for (const key in index1) return;
+          if (--index1[SIZE] !== 0) return;
           delete index0[key0];
+          index0[SIZE]--;
         }
         // ### `_findInIndex` finds a set of quads in a three-layered index.
         // The index base is `index0` and the keys at each level are `key0`, `key1`, and `key2`.
-        // Any of these keys can be undefined, which is interpreted as a wildcard.
+        // A key and any keys after it can be null or undefined, which is interpreted as a wildcard.
         // `name0`, `name1`, and `name2` are the names of the keys at each level,
         // used when reconstructing the resulting quad
         // (for instance: _subject_, _predicate_, and _object_).
         // Finally, `graphId` will be the graph of the created quads.
         *_findInIndex(index0, key0, key1, key2, name0, name1, name2, graphId) {
-          let tmp, index1, index2;
           const entityKeys = this._entities;
           const graph = this._termFromId(entityKeys[graphId]);
           const parts = {
@@ -34548,20 +35060,32 @@ var rdfstore = (() => {
             predicate: null,
             object: null
           };
-          if (key0) (tmp = index0, index0 = {})[key0] = tmp[key0];
-          for (const value0 in index0) {
-            if (index1 = index0[value0]) {
-              parts[name0] = this._termFromId(entityKeys[value0]);
-              if (key1) (tmp = index1, index1 = {})[key1] = tmp[key1];
-              for (const value1 in index1) {
-                if (index2 = index1[value1]) {
-                  parts[name1] = this._termFromId(entityKeys[value1]);
-                  const values2 = key2 ? key2 in index2 ? [key2] : [] : Object.keys(index2);
-                  for (let l = 0; l < values2.length; l++) {
-                    parts[name2] = this._termFromId(entityKeys[values2[l]]);
-                    yield this._factory.quad(parts.subject, parts.predicate, parts.object, graph);
-                  }
-                }
+          if (key2) {
+            const index1 = index0[key0];
+            const index2 = index1 && index1[key1];
+            if (!index2 || !(key2 in index2)) return;
+            parts[name0] = this._termFromId(entityKeys[key0]);
+            parts[name1] = this._termFromId(entityKeys[key1]);
+            parts[name2] = this._termFromId(entityKeys[key2]);
+            yield this._factory.quad(parts.subject, parts.predicate, parts.object, graph);
+            return;
+          }
+          if (key0 && !(key0 in index0)) return;
+          const keys0 = key0 ? null : Object.keys(index0);
+          for (let i0 = 0, value0 = key0 || keys0[0]; value0; value0 = keys0 && keys0[++i0]) {
+            const index1 = index0[value0];
+            if (!index1) continue;
+            parts[name0] = this._termFromId(entityKeys[value0]);
+            if (key1 && !(key1 in index1)) return;
+            const keys1 = key1 ? null : Object.keys(index1);
+            for (let i1 = 0, value1 = key1 || keys1[0]; value1; value1 = keys1 && keys1[++i1]) {
+              const index2 = index1[value1];
+              if (!index2) continue;
+              parts[name1] = this._termFromId(entityKeys[value1]);
+              const values2 = Object.keys(index2);
+              for (let l = 0; l < values2.length; l++) {
+                parts[name2] = this._termFromId(entityKeys[values2[l]]);
+                yield this._factory.quad(parts.subject, parts.predicate, parts.object, graph);
               }
             }
           }
@@ -34592,22 +35116,34 @@ var rdfstore = (() => {
             for (key2 in index2) callback(key2);
           }
         }
+        // ### `_loopByKey0Deep` executes the callback on all keys of index 2
+        // for a certain entry in index 0, possibly repeating keys
+        _loopByKey0Deep(index0, key0, callback) {
+          let index1, index2, key1, key2;
+          if (index1 = index0[key0]) {
+            for (key1 in index1) {
+              index2 = index1[key1];
+              for (key2 in index2) callback(key2);
+            }
+          }
+        }
         // ### `_countInIndex` counts matching quads in a three-layered index.
         // The index base is `index0` and the keys at each level are `key0`, `key1`, and `key2`.
-        // Any of these keys can be undefined, which is interpreted as a wildcard.
+        // A key and any keys after it can be null or undefined, which is interpreted as a wildcard.
         _countInIndex(index0, key0, key1, key2) {
-          let count = 0, tmp, index1, index2;
-          if (key0) (tmp = index0, index0 = {})[key0] = tmp[key0];
-          for (const value0 in index0) {
-            if (index1 = index0[value0]) {
-              if (key1) (tmp = index1, index1 = {})[key1] = tmp[key1];
-              for (const value1 in index1) {
-                if (index2 = index1[value1]) {
-                  if (key2) key2 in index2 && count++;
-                  else count += Object.keys(index2).length;
-                }
-              }
+          let count = 0, index1, index2;
+          if (key0) {
+            if (!(index1 = index0[key0])) return 0;
+            if (key1) {
+              if (!(index2 = index1[key1])) return 0;
+              return key2 ? key2 in index2 ? 1 : 0 : index2[SIZE];
             }
+            for (const value1 in index1) count += index1[value1][SIZE];
+            return count;
+          }
+          for (const value0 in index0) {
+            index1 = index0[value0];
+            for (const value1 in index1) count += index1[value1][SIZE];
           }
           return count;
         }
@@ -34646,9 +35182,15 @@ var rdfstore = (() => {
           let graphItem = this._graphs[graph];
           if (!graphItem) {
             graphItem = this._graphs[graph] = {
-              subjects: {},
-              predicates: {},
-              objects: {}
+              subjects: {
+                [SIZE]: 0
+              },
+              predicates: {
+                [SIZE]: 0
+              },
+              objects: {
+                [SIZE]: 0
+              }
             };
             Object.freeze(graphItem);
           }
@@ -34679,6 +35221,14 @@ var rdfstore = (() => {
             object,
             graph
           } = subjectOrQuad);
+          if (subjectOrQuad && predicate && object && graph !== void 0 && graph !== null) {
+            const subjectId = this._termToNumericId(subjectOrQuad);
+            const predicateId = this._termToNumericId(predicate);
+            const objectId = this._termToNumericId(object);
+            const graphId = graph === "" || (0, _N3Util.isDefaultGraph)(graph) ? 1 : this._termToNumericId(graph);
+            const graphItem = graphId && this._graphs[graphId];
+            return !!subjectId && !!predicateId && !!objectId && !!graphItem && hasInIndex(graphItem.subjects, subjectId, predicateId, objectId);
+          }
           return !this.readQuads(subjectOrQuad, predicate, object, graph).next().done;
         }
         // ### `import` adds a stream of quads to the store
@@ -34704,8 +35254,7 @@ var rdfstore = (() => {
           this._removeFromIndex(graphItem.predicates, predicate, object, subject);
           this._removeFromIndex(graphItem.objects, object, subject, predicate);
           if (this._size !== null) this._size--;
-          for (subject in graphItem.subjects) return true;
-          delete graphs[graph];
+          if (graphItem.subjects[SIZE] === 0) delete graphs[graph];
           return true;
         }
         // ### `removeQuads` removes multiple quads from the store
@@ -34911,7 +35460,7 @@ var rdfstore = (() => {
                 if (predicateId)
                   this._loopBy2Keys(content.subjects, subjectId, predicateId, callback);
                 else
-                  this._loopByKey1(content.objects, subjectId, callback);
+                  this._loopByKey0Deep(content.subjects, subjectId, callback);
               } else if (predicateId)
                 this._loopByKey0(content.predicates, predicateId, callback);
               else
@@ -34948,7 +35497,7 @@ var rdfstore = (() => {
           remove = false,
           ignoreErrors = false
         } = {}) {
-          const lists = {};
+          const lists = /* @__PURE__ */ Object.create(null);
           const onError = ignoreErrors ? () => true : (node, message) => {
             throw new Error(`${node.value} ${message}`);
           };
@@ -35197,17 +35746,16 @@ var rdfstore = (() => {
           return store;
         }
         // ### Store is an iterable.
-        // Can be used where iterables are expected: for...of loops, array spread operator,
-        // `yield*`, and destructuring assignment (order is not guaranteed).
-        *[Symbol.iterator]() {
-          yield* this.readQuads();
+        // Returns the quad iterator directly; order is not guaranteed.
+        [Symbol.iterator]() {
+          return this.readQuads();
         }
       };
       exports2.default = N3Store;
       function indexMatch(index, ids, depth = 0) {
         const ind = ids[depth];
         if (ind && !(ind in index)) return false;
-        let target = false;
+        let target = false, size2 = 0;
         for (const key in ind ? {
           [ind]: index[ind]
         } : index) {
@@ -35215,8 +35763,10 @@ var rdfstore = (() => {
           if (result !== false) {
             target = target || /* @__PURE__ */ Object.create(null);
             target[key] = result;
+            size2++;
           }
         }
+        if (target) target[SIZE] = size2;
         return target;
       }
       var DatasetCoreAndReadableStream = class _DatasetCoreAndReadableStream extends _readableStream.Readable {
@@ -35361,8 +35911,8 @@ var rdfstore = (() => {
         match(subject, predicate, object, graph) {
           return new _DatasetCoreAndReadableStream(this.filtered, subject, predicate, object, graph, this.options);
         }
-        *[Symbol.iterator]() {
-          yield* this._filtered || this.n3Store.readQuads(this.subject, this.predicate, this.object, this.graph);
+        [Symbol.iterator]() {
+          return this._filtered ? this._filtered[Symbol.iterator]() : this.n3Store.readQuads(this.subject, this.predicate, this.object, this.graph);
         }
       };
     }
@@ -35418,50 +35968,69 @@ var rdfstore = (() => {
         return rules;
       }
       var N3Reasoner = class {
-        constructor(store) {
+        constructor(store, options = {}) {
           this._store = store;
+          this._maxDerivations = options.maxDerivations === void 0 ? Infinity : options.maxDerivations;
+          this._maxPremiseDepth = options.maxPremiseDepth === void 0 ? Infinity : options.maxPremiseDepth;
         }
-        _add(subject, predicate, object, graphItem, cb) {
+        _add(subject, predicate, object, graphItem, c, cb) {
           if (!this._store._addToIndex(graphItem.subjects, subject, predicate, object)) return;
           this._store._addToIndex(graphItem.predicates, predicate, object, subject);
           this._store._addToIndex(graphItem.objects, object, subject, predicate);
-          cb();
+          if (++this._derivations > this._maxDerivations) throw new Error(`Reasoning exceeded the maximum of ${this._maxDerivations} derivations`);
+          cb(c);
         }
-        // eslint-disable-next-line no-warning-comments
-        _evaluatePremise(rule, content, cb, i2 = 0) {
-          let v1, v2, value, index1, index2;
-          const [val0, val1, val2] = rule.premise[i2].value, index = content[rule.premise[i2].content];
-          const v0 = !(value = val0.value);
-          for (value in v0 ? index : {
-            [value]: index[value]
-          }) {
-            if (index1 = index[value]) {
-              if (v0) val0.value = Number(value);
-              v1 = !(value = val1.value);
-              for (value in v1 ? index1 : {
-                [value]: index1[value]
-              }) {
-                if (index2 = index1[value]) {
-                  if (v1) val1.value = Number(value);
-                  v2 = !(value = val2.value);
-                  for (value in v2 ? index2 : {
-                    [value]: index2[value]
-                  }) {
-                    if (v2) val2.value = Number(value);
-                    if (i2 === rule.premise.length - 1) rule.conclusion.forEach((c) => {
-                      this._add(c.subject.value, c.predicate.value, c.object.value, content, () => {
-                        cb(c);
-                      });
-                    });
-                    else this._evaluatePremise(rule, content, cb, i2 + 1);
-                  }
-                  if (v2) val2.value = null;
-                }
-              }
-              if (v1) val1.value = null;
-            }
+        // Emit conclusions without allocating per-match callbacks
+        _emit(rule, content, cb) {
+          const conclusion = rule.conclusion;
+          for (let k = 0; k < conclusion.length; k++) {
+            const c = conclusion[k];
+            this._add(c.subject.value, c.predicate.value, c.object.value, content, c, cb);
           }
-          if (v0) val0.value = null;
+        }
+        // Bound values use direct lookups; unbound values scan the index
+        _evaluatePremise(rule, content, cb, i2 = 0) {
+          let value, index1;
+          const [val0, val1, val2] = rule.premise[i2].value, index = content[rule.premise[i2].content];
+          const last = i2 === rule.premise.length - 1;
+          const v0 = !(value = val0.value);
+          if (v0) {
+            for (value in index) {
+              index1 = index[value];
+              val0.value = Number(value);
+              this._evaluateLevel1(rule, content, cb, i2, last, val1, val2, index1);
+            }
+            val0.value = null;
+          } else if (index1 = index[value]) {
+            this._evaluateLevel1(rule, content, cb, i2, last, val1, val2, index1);
+          }
+        }
+        _evaluateLevel1(rule, content, cb, i2, last, val1, val2, index1) {
+          let value, index2;
+          const v1 = !(value = val1.value);
+          if (v1) {
+            for (value in index1) {
+              index2 = index1[value];
+              val1.value = Number(value);
+              this._evaluateLevel2(rule, content, cb, i2, last, val2, index2);
+            }
+            val1.value = null;
+          } else if (index2 = index1[value]) {
+            this._evaluateLevel2(rule, content, cb, i2, last, val2, index2);
+          }
+        }
+        _evaluateLevel2(rule, content, cb, i2, last, val2, index2) {
+          let value;
+          const v2 = !(value = val2.value);
+          if (v2) {
+            for (value in index2) {
+              val2.value = Number(value);
+              if (last) this._emit(rule, content, cb);
+              else this._evaluatePremise(rule, content, cb, i2 + 1);
+            }
+            val2.value = null;
+          } else if (last) this._emit(rule, content, cb);
+          else this._evaluatePremise(rule, content, cb, i2 + 1);
         }
         _evaluateRules(rules, content, cb) {
           for (let i2 = 0; i2 < rules.length; i2++) {
@@ -35478,11 +36047,10 @@ var rdfstore = (() => {
             });
           }
           const addConclusions = (conclusion) => {
-            conclusion.forEach((c) => {
-              this._add(c.subject.value, c.predicate.value, c.object.value, content, () => {
-                addRule(c);
-              });
-            });
+            for (let k = 0; k < conclusion.length; k++) {
+              const c = conclusion[k];
+              this._add(c.subject.value, c.predicate.value, c.object.value, content, c, addRule);
+            }
           };
           this._evaluateRules(rules, content, addRule);
           let r;
@@ -35530,10 +36098,14 @@ var rdfstore = (() => {
           };
         }
         reason(rules) {
+          this._derivations = 0;
           if (!Array.isArray(rules)) {
             rules = getRulesFromDataset(rules);
           }
           rules = rules.map((rule) => this._createRule(rule));
+          for (const rule of rules) {
+            if (rule.premise.length > this._maxPremiseDepth) throw new Error(`Reasoning rule exceeds the maximum premise depth of ${this._maxPremiseDepth}`);
+          }
           for (const r1 of rules) {
             for (const r2 of rules) {
               for (let i2 = 0; i2 < r2.premise.length; i2++) {
@@ -35558,9 +36130,7 @@ var rdfstore = (() => {
                       basePremise: p2
                     });
                   }
-                  r2.variables.forEach((v) => {
-                    v.value = null;
-                  });
+                  for (let k = 0; k < r2.variables.length; k++) r2.variables[k].value = null;
                 }
               }
             }
@@ -35570,10 +36140,13 @@ var rdfstore = (() => {
             rule.premise = rule.premise.map((p2) => getIndex(p2, set));
           }
           const graphs = this._store._getGraphs();
-          for (const graphId in graphs) {
-            this._reasonGraphNaive(rules, graphs[graphId]);
+          try {
+            for (const graphId in graphs) {
+              this._reasonGraphNaive(rules, graphs[graphId]);
+            }
+          } finally {
+            this._store._size = null;
           }
-          this._store._size = null;
         }
       };
       exports2.default = N3Reasoner;
@@ -35621,9 +36194,9 @@ var rdfstore = (() => {
       var N3StreamParser = class extends _readableStream.Transform {
         constructor(options) {
           super({
-            decodeStrings: true
+            decodeStrings: true,
+            readableObjectMode: true
           });
-          this._readableState.objectMode = true;
           const parser = new _N3Parser.default(options);
           let onData, onEnd;
           const callbacks = {
@@ -35662,15 +36235,18 @@ var rdfstore = (() => {
         }
         // ### Parses a stream of strings
         import(stream) {
-          stream.on("data", (chunk) => {
-            this.write(chunk);
-          });
-          stream.on("end", () => {
-            this.end();
-          });
           stream.on("error", (error) => {
             this.emit("error", error);
           });
+          if (typeof stream.pipe === "function") stream.pipe(this);
+          else {
+            stream.on("data", (chunk) => {
+              this.write(chunk);
+            });
+            stream.on("end", () => {
+              this.end();
+            });
+          }
           return this;
         }
       };
@@ -35691,28 +36267,72 @@ var rdfstore = (() => {
       function _interopRequireDefault(e) {
         return e && e.__esModule ? e : { default: e };
       }
+      var MIN_CHUNK_SIZE = 16 * 1024;
+      var DEFAULT_FLUSH_DELAY_MS = 20;
       var N3StreamWriter = class extends _readableStream.Transform {
         constructor(options) {
           super({
             encoding: "utf8",
             writableObjectMode: true
           });
+          this._buffer = "";
+          this._flushTimer = null;
+          this._flushDelay = options && options.flushDelay !== void 0 ? options.flushDelay : DEFAULT_FLUSH_DELAY_MS;
           const writer = this._writer = new _N3Writer.default({
-            write: (quad, encoding, callback) => {
-              this.push(quad);
+            write: (chunk, encoding, callback) => {
+              this._buffer += chunk;
+              if (this._buffer.length >= MIN_CHUNK_SIZE) this._pushBuffer();
+              else if (this._flushTimer === null) this._armFlushTimer();
               callback && callback();
             },
             end: (callback) => {
+              this._pushBuffer();
               this.push(null);
               callback && callback();
             }
           }, options);
+          let pendingDone = null;
+          const quadDone = (error) => {
+            const done = pendingDone;
+            pendingDone = null;
+            if (error) this._pushBuffer();
+            done(error);
+          };
           this._transform = (quad, encoding, done) => {
-            writer.addQuad(quad, done);
+            pendingDone = done;
+            writer.addQuad(quad, quadDone);
           };
           this._flush = (done) => {
             writer.end(done);
           };
+        }
+        // ### `_pushBuffer` flushes coalesced output to the stream queue
+        _pushBuffer() {
+          this._clearFlushTimer();
+          if (this._buffer !== "") {
+            this.push(this._buffer);
+            this._buffer = "";
+          }
+        }
+        // ### `_armFlushTimer` schedules a partial-chunk flush
+        _armFlushTimer() {
+          this._flushTimer = setTimeout(() => {
+            this._flushTimer = null;
+            this._pushBuffer();
+          }, this._flushDelay);
+          this._flushTimer.unref && this._flushTimer.unref();
+        }
+        // ### `_clearFlushTimer` cancels a scheduled flush
+        _clearFlushTimer() {
+          if (this._flushTimer !== null) {
+            clearTimeout(this._flushTimer);
+            this._flushTimer = null;
+          }
+        }
+        // ### `_destroy` cancels a scheduled flush, so it cannot fire afterwards
+        _destroy(error, callback) {
+          this._clearFlushTimer();
+          super._destroy(error, callback);
         }
         // ### Serializes a stream of quads
         import(stream) {
@@ -35723,6 +36343,7 @@ var rdfstore = (() => {
             this.end();
           });
           stream.on("error", (error) => {
+            this._pushBuffer();
             this.emit("error", error);
           });
           stream.on("prefix", (prefix, iri) => {
@@ -47798,7 +48419,7 @@ var rdfstore = (() => {
       Store.prototype.stopObservingQuery = function(query) {
         this.engine.callbacksBackend.stopObservingQuery(query);
       };
-      Store.prototype.subscribe = function(s, p2, o, g, callback) {
+      Store.prototype.subscribe = function(s, p2, o, g, callback, readyCallback) {
         var that2 = this;
         var adapterCb = function(event, triples) {
           var acum = [];
@@ -47816,8 +48437,15 @@ var rdfstore = (() => {
           callback(event, acum);
         };
         this.functionMap[callback] = adapterCb;
-        this.engine.callbacksBackend.subscribe(s, p2, o, g, adapterCb, function() {
-        });
+        this.engine.callbacksBackend.subscribe(
+          s,
+          p2,
+          o,
+          g,
+          adapterCb,
+          typeof readyCallback === "function" ? readyCallback : function() {
+          }
+        );
       };
       Store.prototype.unsubscribe = function(callback) {
         var adapterCb = this.functionMap[callback];
@@ -48023,7 +48651,7 @@ var rdfstore = (() => {
         else
           cb();
       };
-      Store.VERSION = "0.9.18-alpha.21";
+      Store.VERSION = "0.9.18-alpha.22";
       var connect = function() {
         var callback;
         if (arguments.length == 1) {
