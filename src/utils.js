@@ -358,7 +358,10 @@ var whilst = function (test, iterator, callback) {
             if (err) {
                 return callback(err);
             }
-            whilst(test, iterator, callback);
+            // go through nextTick to periodically release the stack on large iterations
+            nextTick(function () {
+                whilst(test, iterator, callback);
+            });
         });
     }
     else {
