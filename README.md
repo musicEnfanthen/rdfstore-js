@@ -131,10 +131,10 @@ This is a list of the different kind of queries currently implemented:
 Install the fork directly from GitHub, pinned to a release tag:
 
 ```bash
-$ yarn add rdfstore@musicEnfanthen/rdfstore-js#v0.9.18-alpha.22
+$ yarn add rdfstore@musicEnfanthen/rdfstore-js#v0.9.18-alpha.23
 ```
 
-With npm: `npm install github:musicEnfanthen/rdfstore-js#v0.9.18-alpha.22`. All available versions are listed under [Tags](https://github.com/musicEnfanthen/rdfstore-js/tags).
+With npm: `npm install github:musicEnfanthen/rdfstore-js#v0.9.18-alpha.23`. All available versions are listed under [Tags](https://github.com/musicEnfanthen/rdfstore-js/tags).
 
 ## Building
 
