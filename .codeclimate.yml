@@ -3,6 +3,6 @@ languages:
 exclude_paths:
   - dist/*
   - spec/*
-  - pegjs/*
+  - grammar/*
   - frontend/*
   - src/perftest/*

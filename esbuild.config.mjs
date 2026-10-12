@@ -13,10 +13,6 @@ await esbuild.build({
   platform: 'browser',
   target: 'es2022',
   outfile: 'dist/rdfstore.js',
-  external: [
-    'sqlite3',
-    'indexeddb-js'
-  ],
   alias: {
     'http': resolve(__dirname, 'stubs/empty.js'),
     'https': resolve(__dirname, 'stubs/empty.js'),

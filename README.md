@@ -1,7 +1,7 @@
 # rdfstore-js 
 
 [![CI Workflow](https://github.com/musicEnfanthen/rdfstore-js/actions/workflows/main.yml/badge.svg)](https://github.com/musicEnfanthen/rdfstore-js/actions/workflows/main.yml)
-[![Node Version](https://img.shields.io/badge/node-%3E%3D22.22.0-brightgreen)](https://nodejs.org/)
+[![Node Version](https://img.shields.io/badge/node-%5E22.22.3%20%7C%7C%20%3E%3D24.15.0-brightgreen)](https://nodejs.org/)
 
 ## Important Note
 
@@ -512,6 +512,8 @@ The store can be persisted in the browser using IndexedDB as the backend. In ord
 the 'persistent' flag must be set to true in the store creation options.
 Additionally, a 'name' option can also be passed for the store. Different persistent instances of the store can be
 opened using different names.
+
+Persistence requires a native IndexedDB implementation (browser window or web worker). In Node.js, use the default in-memory store. (The SQLite-based IndexedDB emulation for Node.js was removed in v0.9.18-alpha.23.)
 
 ###Controlling the frequency of function yielding
 
