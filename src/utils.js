@@ -194,33 +194,20 @@ normalizeUnicodeLiterals = function (string) {
     return string;
 };
 
+// Persistence relies on the native IndexedDB of the runtime (browser window or worker).
 registerIndexedDB = function(that) {
-    if(typeof(window) === 'undefined' && typeof(process) !== "undefined" && process.browser === false) {
-        var sqlite3 = _dereq_('sqlite3')
-        var indexeddbjs = _dereq_("indexeddb-js");
-        var engine    = new sqlite3.Database(':memory:');
-        var scope     = indexeddbjs.makeScope('sqlite3', engine);
-        that.indexedDB = scope.indexedDB;
-        that.IDBKeyRange = scope.IDBKeyRange;
-    } else {
-        // In the following line, you should include the prefixes of implementations you want to test.
-        var context
-        if(typeof(window) === "undefined") {
-            context = self;
-        } else {
-            context = window;
-        }
+    // In the following line, you should include the prefixes of implementations you want to test.
+    var context = globalThis;
 
-        context.indexedDB = context.indexedDB || context.mozIndexedDB || context.webkitIndexedDB || context.msIndexedDB;
-        context.IDBKeyRange = context.IDBKeyRange || context.webkitIDBKeyRange || context.msIDBKeyRange;
-        // DON'T use "var indexedDB = ..." if you're not in a function.
-        // Moreover, you may need references to some window.IDB* objects:
-        if (!context.indexedDB) {
-            console.log("The browser does not support IndexDB.");
-        } else {
-            that.indexedDB = context.indexedDB;
-            that.IDBKeyRange = context.IDBKeyRange;
-        }
+    context.indexedDB = context.indexedDB || context.mozIndexedDB || context.webkitIndexedDB || context.msIndexedDB;
+    context.IDBKeyRange = context.IDBKeyRange || context.webkitIDBKeyRange || context.msIDBKeyRange;
+    // DON'T use "var indexedDB = ..." if you're not in a function.
+    // Moreover, you may need references to some window.IDB* objects:
+    if (!context.indexedDB) {
+        console.log("The runtime does not support IndexedDB.");
+    } else {
+        that.indexedDB = context.indexedDB;
+        that.IDBKeyRange = context.IDBKeyRange;
     }
 };
 
