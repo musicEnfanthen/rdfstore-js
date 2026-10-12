@@ -1,3 +1,8 @@
+* text=auto eol=lf
+
+# W3C test fixtures are kept byte-for-byte as published (e.g. CSV results use CRLF per RFC 4180)
+/spec/w3c/** -text
+
 /.yarn/releases/** binary
 /.yarn/plugins/** binary
 /dist/rdfstore_min.js binary
