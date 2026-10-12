@@ -161,7 +161,7 @@ describe('BTree', function(){
         });
     });
 
-    xit("Should be possible to insert and delete big collections on data", function(done){
+    it("Should be possible to insert and delete big collections on data", function(done){
 
         var max = 1;
         var max_data = 10000;
@@ -169,8 +169,8 @@ describe('BTree', function(){
         var j=0;
         var data = [];
 
-        async.whilst(function(){
-            return i<max;
+        async.whilst(function(cb){
+            cb(null, i<max);
         }, function(c){
             var next = i * 100 /max;
             async.seq(function(_,c){
@@ -185,8 +185,8 @@ describe('BTree', function(){
                 shuffle(data);
                 j = 0;
 
-                async.whilst(function(){
-                    return j<max_data;
+                async.whilst(function(cb){
+                    cb(null, j<max_data);
                 }, function(cc){
                     tree.insert(data[j],data[j], function(){
                         j++;
@@ -198,8 +198,8 @@ describe('BTree', function(){
             },function(tree,c){
 
                 j=0;
-                async.whilst(function(){
-                    return j<max_data;
+                async.whilst(function(cb){
+                    cb(null, j<max_data);
                 }, function(cc){
                     tree.delete(data[j],function(){
                         j++;
