@@ -3,6 +3,14 @@
 [![CI Workflow](https://github.com/musicEnfanthen/rdfstore-js/actions/workflows/main.yml/badge.svg)](https://github.com/musicEnfanthen/rdfstore-js/actions/workflows/main.yml)
 [![Node Version](https://img.shields.io/badge/node-%5E22.22.3%20%7C%7C%20%3E%3D24.15.0-brightgreen)](https://nodejs.org/)
 
+## About this fork
+
+This is a maintained fork of [antoniogarrote/rdfstore-js](https://github.com/antoniogarrote/rdfstore-js), which is no longer developed. It keeps the core of the library (in-memory store, SPARQL engine, N3/Turtle and JSON-LD loading, browser bundle) working with current Node.js versions and up-to-date dependencies. Features that could no longer be maintained were removed, for example the Bower package, the Electron frontend and the Node.js persistence backend. Most of this README is still the original documentation. Where it differs from the code, the code wins.
+
+**Versioning:** The fork branches off from the last original release, `v0.9.17` (September 2016). All fork releases are pre-releases of the next version, tagged as `v0.9.18-alpha.N` (since `v0.9.18-alpha.0`, June 2022).
+
+This fork is not published to npm. `npm install rdfstore` installs the original package (see [Installation](#installation)).
+
 ## Important Note
 
 Many features present in versions 0.8.X have been removed in the 0.9.X. Some of them, will be added in the next versions, other like the MongoDB backend will be discarded.
@@ -10,6 +18,7 @@ Please read this README file carefully to find the current set of features.
 
 ## Table of Contents
 
+- [About this fork](#about-this-fork)
 - [Introduction](#introduction)
 - [Documentation](#documentation)
 - [SPARQL support](#sparql-support)
@@ -31,7 +40,7 @@ Please read this README file carefully to find the current set of features.
 - [Dependencies](#dependencies)
 - [Frontend](#frontend)
 - [Contributing](#contributing)
-- [Author](#author)
+- [Authors](#authors)
 - [License](#license)
 
 
@@ -117,35 +126,26 @@ This is a list of the different kind of queries currently implemented:
 - FILTER IN / NOT IN operators
 
 
-##Installation
+## Installation
 
-The library can be installed using NPM:
+Install the fork directly from GitHub, pinned to a release tag:
 
 ```bash
-$ npm install rdfstore
+$ yarn add rdfstore@musicEnfanthen/rdfstore-js#v0.9.18-alpha.22
 ```
 
-~~The library can also be installed via bower using a global module:~~ (Removed in v0.9.18-alpha.1 due to dependency maintenance issues.)
+With npm: `npm install github:musicEnfanthen/rdfstore-js#v0.9.18-alpha.22`. All available versions are listed under [Tags](https://github.com/musicEnfanthen/rdfstore-js/tags).
+
+## Building
+
+The project uses [Yarn](https://yarnpkg.com/) 4, which ships with [Node.js](https://nodejs.org/) via [Corepack](https://nodejs.org/api/corepack.html). Enable it once, then install the dependencies:
 
 ```bash
-$ bower install rdfstore
-```
-
-##Building
-
-Before running the build script, you must install JavaScript dependencies with [npm](https://npmjs.org/doc/install.html) (`npm` is shipped with [node](http://nodejs.org/download/)):
-
-```bash
+$ corepack enable
 $ yarn install
 ```
 
-The library can be built using the 'test' npm script:
-
-```bash
-$ yarn run test
-```
-
-The browser version can be built using the 'build' npm script:
+The browser version (`dist/rdfstore.js` and `dist/rdfstore_min.js`) can be built using the `build` script:
 
 ```bash
 $ yarn run build
@@ -153,21 +153,18 @@ $ yarn run build
 
 ## Tests
 
-To execute the whole test suite of the library, including the DAWG
-test cases for SPARQL 1.0 and the test cases for SPARQL 1.1
-implemented at the moment, a npm script  can be executed:
+To execute the whole test suite of the library (unit specs, the W3C SPARQL 1.1
+syntax test suites and the end-to-end tests), run:
 
 ```bash
 $ yarn run test
 ```
 
-Additionally, there are some smoke tests for both browser versions that can be found in the 'spec/browser'' directory.
-
 ## API
 
 This is a small overview of the rdfstore-js API.
 
-###Store creation
+### Store creation
 
 ```javascript
 //nodejs only
@@ -188,7 +185,7 @@ new rdfstore.Store(function(err, store) {
 });
 ```
 
-###Query execution
+### Query execution
 
 ```javascript
 // simple query execution
@@ -214,7 +211,7 @@ store.executeWithEnvironment("SELECT * { ?s ?p ?o }",defaultGraph,
 });
 ```
 
-###Construct queries RDF Interfaces API
+### Construct queries RDF Interfaces API
 
 ```javascript
 var query = "CONSTRUCT { <http://example.org/people/Alice> ?p ?o } \
@@ -233,7 +230,7 @@ store.execute(query, function(err, graph){
 });
 ```
 
-###Loading remote graphs
+### Loading remote graphs
 
 rdfstore-js will try to retrieve remote RDF resources across the network when a 'LOAD' SPARQL query is executed.
 The node.js build of the library will use regular TCP sockets and perform proper content negotiation. It will also follow a limited number of redirections.
@@ -253,7 +250,7 @@ store.execute('LOAD <http://dbpedialite.org/titles/Lisp_%28programming_language%
 })
 ```
 
-###High level interface
+### High level interface
 
 The following interface is a convenience API to work with Javascript code instead of using SPARQL query strings. It is built on top of the RDF Interfaces W3C API.
 
@@ -331,7 +328,7 @@ store.load('remote', remoteGraphUri, function(err, results) {});
 store.registerParser("application/rdf+xml", rdXmlParser);
 ```
 
-###RDF Interface API
+### RDF Interface API
 
 The store object includes a 'rdf' object implementing a RDF environment as described in the [RDF Interfaces 1.0](http://www.w3.org/TR/rdf-interfaces/) W3C's working draft.
 This object can be used to access to the full RDF Interfaces 1.0 API.
@@ -355,7 +352,7 @@ var triples = graph.match(null, store.rdf.createNamedNode(store.rdf.resolve("foa
 console.log("worked? "+(triples[0].object.valueOf() === 'Alice'));
 ```
 
-###Default Prefixes
+### Default Prefixes
 
 Default RDF name-spaces can be specified using the *registerDefaultNamespace*. These names will be included automatically in all queries. If the same name-space is specified by the client in the query string the new prefix will shadow the default one.
 A collection of common name-spaces like rdf, rdfs, foaf, etc. can be automatically registered using the *registerDefaultProfileNamespace* function.
@@ -374,7 +371,7 @@ new Store({name:'test', overwrite:true}, function(err,store){
 });
 ```
 
-###JSON-LD Support
+### JSON-LD Support
 
 rdfstore-js implements parsers for Turtle and JSON-LD. The specification of JSON-LD is still an ongoing effort. You may expect to find some inconsistencies between this implementation and the actual specification.
 
@@ -404,7 +401,7 @@ store.load("application/ld+json", jsonld, "ex:test", function(err,results) {
 });
 ```
 
-###Events API
+### Events API
 
 rdfstore-js implements an experimental events API that allows clients to observe changes in the RDF graph and receive notifications when parts of this graph changes.
 The two main event functions are *subscribe* that makes possible to set up a callback function that will be invoked each time triples matching a certain pattern passed as an argument are added or removed, and the function *startObservingNode* that will be invoked with the modified version of the node each time triples are added or removed from the node.
@@ -455,7 +452,7 @@ store.stopObservingNode(cb);
 In the same way, there are *startObservingQuery* and *stopObservingQuery* functions that makes possible to set up callbacks for whole SPARQL queries.
 The store will try to be smart and not perform unnecessary evaluations of these query after quad insertion/deletions. Nevertheless too broad queries must be used carefully with the events API.
 
-###Custom Filter Functions
+### Custom Filter Functions
 
 Custom filter function can be registered into the store using the *registerCustomFunction* function. This function receives two argument, the name of the custom function and the associated implementation. This functions will be available in a SPARQL query using the prefix *custom*.
 You can also use a full URI to identify the function that is going to be registered.
@@ -506,7 +503,7 @@ new Store({name:'test', overwrite:true}, function(err,store) {
 });
 ```
 
-###Persistence
+### Persistence
 
 The store can be persisted in the browser using IndexedDB as the backend. In order to make the store persistent,
 the 'persistent' flag must be set to true in the store creation options.
@@ -515,7 +512,7 @@ opened using different names.
 
 Persistence requires a native IndexedDB implementation (browser window or web worker). In Node.js, use the default in-memory store. (The SQLite-based IndexedDB emulation for Node.js was removed in v0.9.18-alpha.23.)
 
-###Controlling the frequency of function yielding
+### Controlling the frequency of function yielding
 
 Performance of the store can be improved by reducing the frequency the 'nexTick' mechanism is used to cancel the the calls stack.
 You can reduce this frequency by invoking the `yieldFrequency` function on the Store object and passing a bigger number:
@@ -527,7 +524,7 @@ rdfstore.Store.yieldFrequency(200); // will only yield after 200 invocations of 
 ```
 If the number is too big a number can produce stack overflow errors during execution. If you find this problem, reduce the value provided for `yieldFrequency`.
 
-##Dependencies
+## Dependencies
 
 The library include dependencies to two semantic-web libraries for
 parsing:
@@ -547,15 +544,16 @@ $ gulp frontend
 
 ~~The file will be added under the releases directory.~~ (Removed in v0.9.18-alpha.1 due to dependency maintenance issues.)
 
-##Contributing
+## Contributing
 
-rdfstore-js is still at the beginning of its development. If you take a look at the library and find a way to improve it, please ping us. We'll be very greatful for any bug report or pull-request.
+This fork focuses on keeping the existing functionality working with current dependencies. Fixes and improvements are welcome as [pull requests](https://github.com/musicEnfanthen/rdfstore-js/pulls) against the `develop` branch.
 
-## Author
+## Authors
 
-Antonio Garrote, email:antoniogarrote@gmail.com, twitter:@antoniogarrote.
+- Antonio Garrote (original author), email: antoniogarrote@gmail.com, twitter: @antoniogarrote
+- Stefan Münnich ([@musicEnfanthen](https://github.com/musicEnfanthen)), maintainer of this fork since 2022
 
 
 ## License
 
-Licensed under the [MIT License](http://opensource.org/licenses/MIT), copyright Antonio Garrote 2011-2015
+Licensed under the [MIT License](http://opensource.org/licenses/MIT), copyright Antonio Garrote 2011-2015, fork modifications copyright musicEnfanthen 2022-2026
