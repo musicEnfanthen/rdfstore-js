@@ -38,7 +38,7 @@
     "e2e:comprehensive": "yarn node e2e/test-comprehensive.js",
     "e2e:esm": "yarn node e2e/test-esm.mjs",
     "e2e:readme": "yarn node e2e/test-readme-sample.js",
-    "parse-grammar": "yarn node pegjs/parse_grammar.js",
+    "parse-grammar": "yarn node grammar/parse_grammar.js",
     "performance": "yarn node ./src/perftest/trees.js",
     "specs": "jasmine ./spec/*.js",
     "\n---MAIN---": "",
