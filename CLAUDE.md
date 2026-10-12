@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Fork of Antonio Garrote's `rdfstore-js` (maintained by musicEnfanthen): an RDF graph store in plain CommonJS JavaScript that supports SPARQL 1.0 and most of SPARQL 1.1 Update. It runs in Node (>=22.22) and in the browser (esbuild bundle). The package manager is Yarn 4 via corepack (`packageManager: yarn@4.16.0`).
+Fork of Antonio Garrote's `rdfstore-js` (maintained by musicEnfanthen): an RDF graph store in plain CommonJS JavaScript that supports SPARQL 1.0 and most of SPARQL 1.1 Update. It runs in Node (`^22.22.3 || >= 24.15.0`) and in the browser (esbuild bundle). The package manager is Yarn 4 via corepack (`packageManager: yarn@4.16.0`).
 
 ## Commands
 
@@ -32,7 +32,7 @@ CI ([.github/workflows/main.yml](.github/workflows/main.yml)) runs `yarn unit`, 
 ## Generated / committed artifacts
 
 - [src/parser.js](src/parser.js) (~16k lines) is **generated** by [Peggy](https://peggyjs.org/) from [grammar/sparql_query.grammar](grammar/sparql_query.grammar) via [grammar/parse_grammar.js](grammar/parse_grammar.js). Never edit it by hand: change the grammar and run `yarn parse-grammar`. It is committed. `yarn unit`, `yarn test` and `yarn build` regenerate it on every run.
-- `dist/rdfstore.js` and `dist/rdfstore_min.js` are build outputs and are also committed, but **only rebuilt when cutting a release**. If you run `yarn build` to verify a change, discard the output with `git checkout -- dist`. The package `exports` map points `require` to `src/store.js` and `import` to `dist/rdfstore_min.js`, so ESM consumers (and `e2e:esm`) only see changes after a rebuild. The awg-app, the main consumer of this fork, loads only `dist/rdfstore_min.js` as a global script.
+- `dist/rdfstore.js` and `dist/rdfstore_min.js` are build outputs and are also committed, but **only rebuilt when cutting a release**. If you run `yarn build` to verify a change, discard the output with `git checkout -- dist`. The package `exports` map points `require` to `src/store.js` and `import` to `dist/rdfstore_min.js`, so ESM consumers (and `e2e:esm`) only see changes after a rebuild.
 - [esbuild.config.mjs](esbuild.config.mjs) bundles `src/store.js` as an IIFE with global `rdfstore`. It aliases Node built-ins (`http`, `https`, `url`, `fs`, `path`) to [stubs/empty.js](stubs/empty.js).
 
 ## Architecture
