@@ -41,7 +41,7 @@ Everything is callback-based (`callback(err, result)`) and asynchronous. There a
 
 **Layering** (from the public API down to storage):
 
-1. **[src/store.js](src/store.js)**: the public `Store` facade (`execute`, `load`, `insert`/`delete`, `graph`/`node`, events and subscriptions, `registerCustomFunction`, prefixes). The constructor picks either the in-memory backend (`Lexicon` + `QuadBackend`) or the IndexedDB backend (`PersistentLexicon` + `PersistentQuadBackend`) when `persistent: true` is set. It then builds a `QueryEngine`. Persistence works only where a native IndexedDB exists (browser window or worker). There is no Node.js backend, and its specs are disabled.
+1. **[src/store.js](src/store.js)**: the public `Store` facade (`execute`, `load`, `insert`/`delete`, `graph`/`node`, events and subscriptions, `registerCustomFunction`, prefixes). The constructor picks either the in-memory backend (`Lexicon` + `QuadBackend`) or the IndexedDB backend (`PersistentLexicon` + `PersistentQuadBackend`) when `persistent: true` is set. It then builds a `QueryEngine`. Persistence works only where a native IndexedDB exists (browser window or worker). There is no Node.js backend, and persistence is not covered by specs.
 2. **[src/query_engine.js](src/query_engine.js)**: the main executor. `execute()` normalizes the query string, parses it via `AbstractQueryTree`, then sends it to `executeQuery` (SELECT/CONSTRUCT/ASK) or `executeUpdate` (INSERT/DELETE/LOAD/CLEAR/...). Update queries are wrapped in `callbacksBackend.start/end/cancelGraphModification` so that events fire.
 3. **[src/abstract_query_tree.js](src/abstract_query_tree.js)**: wraps the PEG parser and rewrites the syntax tree into SPARQL algebra (BGP, JOIN, LEFT_JOIN, UNION, FILTER, ...). It raises `NonSupportedSparqlFeatureError` for unsupported features.
 4. **[src/query_plan.js](src/query_plan.js)**: BGP join planning and execution against the backend. **[src/query_filters.js](src/query_filters.js)**: FILTER expressions, built-in functions, aggregates and custom functions.
@@ -58,13 +58,12 @@ Everything is callback-based (`callback(err, result)`) and asynchronous. There a
 ## Tests
 
 - Jasmine config: [spec/support/jasmine.json](spec/support/jasmine.json). It sets `random: false`, but Jasmine 7 still runs the specs in random order (the output prints the seed). Pass `--random=false` or `--seed=<n>` to reproduce an order-dependent failure.
-- [spec/w3c_spec.js](spec/w3c_spec.js) runs W3C SPARQL test suites from `spec/w3c/*/manifest.ttl` via [spec/w3c_suite_helper.js](spec/w3c_suite_helper.js). Only the syntax suites (`syntax-query`, `syntax-update-1`, `syntax-update-2`) are wired up. Use them to check parser and grammar changes. The other directories under `spec/w3c/` are unused fixtures.
+- [spec/w3c_spec.js](spec/w3c_spec.js) runs the W3C SPARQL 1.1 syntax suites (`syntax-query`, `syntax-update-1`, `syntax-update-2` in `spec/w3c/`) via [spec/w3c_suite_helper.js](spec/w3c_suite_helper.js). The helper supports only syntax tests. Use them to check parser and grammar changes. For SPARQL evaluation cases, take individual tests from [w3c/rdf-tests](https://github.com/w3c/rdf-tests) and turn them into regular specs.
 - Specs import the real `async` package (v3), whose `whilst` expects an async test function: `function(cb){ cb(null, cond); }`. A test that returns a boolean never calls back, and the spec times out.
-- `spec/browser/` and [browse.sh](browse.sh) are manual browser smoke tests.
 
 ## Repo conventions
 
 - Git-flow branching: day-to-day work goes on `develop`, releases go through `release/vX.Y.Z-alpha.N` branches merged to `main` and tagged. PRs target `develop`.
 - Commit messages follow Conventional Commits (`build(deps): ...`, `test(e2e): ...`, `fix: ...`).
 - The maintainer reviews and commits each step personally. Do not commit; stop after each step and suggest a commit message.
-- Line endings are LF everywhere ([.gitattributes](.gitattributes) `* text=auto eol=lf`, [.editorconfig](.editorconfig)), except `spec/w3c/**`. Those fixtures are marked `-text` and kept byte-for-byte as W3C publishes them; some use CRLF on purpose, e.g. CSV results per RFC 4180.
+- Line endings are LF everywhere ([.gitattributes](.gitattributes) `* text=auto eol=lf`, [.editorconfig](.editorconfig)).
