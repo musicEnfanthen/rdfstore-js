@@ -1,3 +1,5 @@
+"use strict";
+
 var async = require('./utils');
 var Tree = require('./btree').Tree;
 
@@ -6,7 +8,7 @@ var Tree = require('./btree').Tree;
  */
 
 
-Lexicon = function(callback){
+var Lexicon = function(callback){
     var that = this;
     this.defaultGraphOid = 0;
     this.defaultGraphUri = "https://github.com/antoniogarrote/rdfstore-js#default_graph";
@@ -192,7 +194,7 @@ Lexicon.prototype.resolveBlank = function(label,callback) {
         } else {
             // ??
             var oid = that.oidCounter;
-            this.oidCounter++;
+            that.oidCounter++;
             callback(""+oid);
             //
         }

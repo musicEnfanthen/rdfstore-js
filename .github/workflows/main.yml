@@ -52,15 +52,20 @@ jobs:
         run: |
           yarn install  --immutable
 
+      - name: Lint
+        run: |
+          yarn lint
+
       - name: Run unit tests
         run: |
           yarn unit
 
-      - name: Run e2e tests
-        run: |
-          yarn e2e
-
+      # e2e:esm imports the freshly built dist/rdfstore.mjs, so build first
       - name: Test build
         continue-on-error: false
         run: |
           yarn build
+
+      - name: Run e2e tests
+        run: |
+          yarn e2e

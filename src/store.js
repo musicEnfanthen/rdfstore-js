@@ -1,3 +1,5 @@
+"use strict";
+
 // imports
 var QueryEngine = require("./query_engine").QueryEngine;
 var InMemoryQuadBackend = require("./quad_backend").QuadBackend;
@@ -6,6 +8,7 @@ var InMemoryLexicon = require("./lexicon").Lexicon;
 var PersistentLexicon = require("./persistent_lexicon").PersistentLexicon;
 var RDFModel = require("./rdf_model");
 var _ = require("./utils");
+var NetworkTransport = require("./network_transport").NetworkTransport;
 
 
 /**
@@ -25,7 +28,7 @@ var _ = require("./utils");
  *  <li> maxCacheSize: if using persistence, maximum size of the index cache </li>
  * </ul>
  */
-Store = function(arg1, arg2) {
+var Store = function(arg1, arg2) {
     var callback = null;
     var params   = null;
 

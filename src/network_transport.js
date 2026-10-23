@@ -1,10 +1,12 @@
+"use strict";
+
 var utils = require("./utils");
 if(!utils.isWorker()) {
     var http = require("http");
     var https = require("https");
     var url = require("url");
 
-    NetworkTransport = {
+    var NetworkTransport = {
 
         load: function (uri, accept, callback, redirect) {
             var redirection = redirect == null ? 3 : redirect;
