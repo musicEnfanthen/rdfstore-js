@@ -1,6 +1,6 @@
 {
   "name": "rdfstore",
-  "version": "0.9.18-alpha.23",
+  "version": "0.9.18-alpha.24",
   "description": "RDF graph store supporting the SPARQL query language",
   "keywords": [
     "RDF",
@@ -20,7 +20,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/musicEnfanthen/rdfstore-js.git"
+    "url": "https://github.com/webern-unibas-ch/rdfstore-js.git"
   },
   "licenses": [
     {
@@ -60,7 +60,7 @@
   },
   "dependencies": {
     "jsonld": "^9.0.0",
-    "n3": "^2.0.3"
+    "n3": "^2.13.0"
   },
   "devDependencies": {
     "async": "^3.2.6",
