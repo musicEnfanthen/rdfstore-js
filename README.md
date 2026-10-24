@@ -1,6 +1,6 @@
 # rdfstore-js 
 
-[![CI Workflow](https://github.com/musicEnfanthen/rdfstore-js/actions/workflows/main.yml/badge.svg)](https://github.com/musicEnfanthen/rdfstore-js/actions/workflows/main.yml)
+[![CI Workflow](https://github.com/webern-unibas-ch/rdfstore-js/actions/workflows/main.yml/badge.svg)](https://github.com/webern-unibas-ch/rdfstore-js/actions/workflows/main.yml)
 [![Node Version](https://img.shields.io/badge/node-%5E22.23.4%20%7C%7C%20%3E%3D24.22.1-brightgreen)](https://nodejs.org/)
 
 ## About this fork
@@ -131,10 +131,10 @@ This is a list of the different kind of queries currently implemented:
 Install the fork directly from GitHub, pinned to a release tag:
 
 ```bash
-$ yarn add rdfstore@musicEnfanthen/rdfstore-js#v0.9.18-alpha.23
+$ yarn add rdfstore@webern-unibas-ch/rdfstore-js#v0.9.18-alpha.24
 ```
 
-With npm: `npm install github:musicEnfanthen/rdfstore-js#v0.9.18-alpha.23`. All available versions are listed under [Tags](https://github.com/musicEnfanthen/rdfstore-js/tags).
+With npm: `npm install github:webern-unibas-ch/rdfstore-js#v0.9.18-alpha.24`. All available versions are listed under [Tags](https://github.com/webern-unibas-ch/rdfstore-js/tags).
 
 ## Building
 
@@ -570,7 +570,7 @@ $ gulp frontend
 
 ## Contributing
 
-This fork focuses on keeping the existing functionality working with current dependencies. Fixes and improvements are welcome as [pull requests](https://github.com/musicEnfanthen/rdfstore-js/pulls) against the `develop` branch.
+This fork focuses on keeping the existing functionality working with current dependencies. Fixes and improvements are welcome as [pull requests](https://github.com/webern-unibas-ch/rdfstore-js/pulls) against the `develop` branch.
 
 ## Authors
 
