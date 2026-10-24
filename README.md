@@ -1,7 +1,7 @@
 # rdfstore-js 
 
-[![CI Workflow](https://github.com/musicEnfanthen/rdfstore-js/actions/workflows/main.yml/badge.svg)](https://github.com/musicEnfanthen/rdfstore-js/actions/workflows/main.yml)
-[![Node Version](https://img.shields.io/badge/node-%5E22.22.3%20%7C%7C%20%3E%3D24.15.0-brightgreen)](https://nodejs.org/)
+[![CI Workflow](https://github.com/webern-unibas-ch/rdfstore-js/actions/workflows/main.yml/badge.svg)](https://github.com/webern-unibas-ch/rdfstore-js/actions/workflows/main.yml)
+[![Node Version](https://img.shields.io/badge/node-%5E22.23.4%20%7C%7C%20%3E%3D24.22.1-brightgreen)](https://nodejs.org/)
 
 ## About this fork
 
@@ -131,10 +131,10 @@ This is a list of the different kind of queries currently implemented:
 Install the fork directly from GitHub, pinned to a release tag:
 
 ```bash
-$ yarn add rdfstore@musicEnfanthen/rdfstore-js#v0.9.18-alpha.23
+$ yarn add rdfstore@webern-unibas-ch/rdfstore-js#v0.9.18-alpha.24
 ```
 
-With npm: `npm install github:musicEnfanthen/rdfstore-js#v0.9.18-alpha.23`. All available versions are listed under [Tags](https://github.com/musicEnfanthen/rdfstore-js/tags).
+With npm: `npm install github:webern-unibas-ch/rdfstore-js#v0.9.18-alpha.24`. All available versions are listed under [Tags](https://github.com/webern-unibas-ch/rdfstore-js/tags).
 
 ## Building
 
@@ -145,11 +145,35 @@ $ corepack enable
 $ yarn install
 ```
 
-The browser version (`dist/rdfstore.js` and `dist/rdfstore_min.js`) can be built using the `build` script:
+The browser versions can be built using the `build` script:
 
 ```bash
 $ yarn run build
 ```
+
+It writes a script-tag bundle (`dist/rdfstore.js`, `dist/rdfstore_min.js`) and an ES module bundle (`dist/rdfstore.mjs`, `dist/rdfstore_min.mjs`).
+
+## Module formats
+
+Which file you get depends on how the package is loaded:
+
+| Environment | Entry | API |
+|---|---|---|
+| Node.js, `require('rdfstore')` or `import('rdfstore')` | `src/store.js` | `create`, `connect`, `Store` (named exports with `import`) |
+| Bundlers targeting the browser (esbuild, Vite, webpack, Rollup), via the `browser` export condition | `dist/rdfstore.mjs` | named exports `create`, `connect`, `Store`, plus a default export |
+| `<script src="dist/rdfstore_min.js">` | `dist/rdfstore.js`, `dist/rdfstore_min.js` | global `rdfstore` |
+| `<script type="module">` | `dist/rdfstore_min.mjs` | as the ES module bundle |
+
+```javascript
+// ES modules, e.g. as a lazily loaded chunk in a browser app
+const { create } = await import('rdfstore');
+
+create(function(err, store) {
+  // the new store is ready
+});
+```
+
+The browser bundles replace Node's `http`, `https`, `url`, `fs` and `path` modules with empty stubs. Loading data from a remote URL or a local file therefore only works through the Node.js entry. In the browser, load data from strings.
 
 ## Tests
 
@@ -546,7 +570,7 @@ $ gulp frontend
 
 ## Contributing
 
-This fork focuses on keeping the existing functionality working with current dependencies. Fixes and improvements are welcome as [pull requests](https://github.com/musicEnfanthen/rdfstore-js/pulls) against the `develop` branch.
+This fork focuses on keeping the existing functionality working with current dependencies. Fixes and improvements are welcome as [pull requests](https://github.com/webern-unibas-ch/rdfstore-js/pulls) against the `develop` branch.
 
 ## Authors
 

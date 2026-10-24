@@ -2,14 +2,14 @@ name: CI Workflow
 
 on:
   push:
-    # trigger on all branches except for dependabot-triggered push events
-    branches-ignore: [ dependabot/** ]
+    # only the long-lived branches; others once per PR
+    branches: [ develop, main ]
     tags:
       - 'v*'    # trigger on all tags
     paths-ignore:
       - '**.md' # ignore changes in markdown files
   pull_request:
-    branches: [ develop ]
+    branches: [ develop, main ]
     types: [ opened, synchronize, reopened ]
 
 permissions:
@@ -22,11 +22,11 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        node-version: [22.22, 24.16, 26.x]
+        node-version: ['22.x', '24.x', '26.x']
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
@@ -39,6 +39,8 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # ratchet:actions/setup-node@v7.1.0
         with:
           node-version: ${{ matrix.node-version }}
+          # always the newest patch release, including security releases
+          check-latest: true
 
       - name: Set up corepack (for getting yarn)
         run: corepack enable
@@ -52,15 +54,20 @@ jobs:
         run: |
           yarn install  --immutable
 
+      - name: Lint
+        run: |
+          yarn lint
+
       - name: Run unit tests
         run: |
           yarn unit
 
-      - name: Run e2e tests
-        run: |
-          yarn e2e
-
+      # e2e:esm imports the freshly built dist/rdfstore.mjs, so build first
       - name: Test build
         continue-on-error: false
         run: |
           yarn build
+
+      - name: Run e2e tests
+        run: |
+          yarn e2e

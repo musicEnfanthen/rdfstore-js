@@ -1,3 +1,5 @@
+"use strict";
+
 // imports
 var SparqlParser = require("./parser");
 var Utils = require("./utils");
@@ -12,7 +14,7 @@ NonSupportedSparqlFeatureError.prototype = new Error();
 NonSupportedSparqlFeatureError.constructor = NonSupportedSparqlFeatureError;
 
 function SparqlParserError(message) {
-    this.name = ParserError;
+    this.name = "SparqlParserError";
     this.message = message || "Error parsing SPARQL query";
 }
 SparqlParserError.prototype = new Error();
@@ -25,7 +27,7 @@ SparqlParserError.constructor = SparqlParserError;
  * Based on <http://www.w3.org/2001/sw/DataAccess/rq23/rq24-algebra.html>
  * W3C's note
  */
-AbstractQueryTree = function() {
+var AbstractQueryTree = function() {
 };
 
 AbstractQueryTree.prototype.parseQueryString = function(query_string) {

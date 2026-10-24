@@ -1,3 +1,4 @@
+"use strict";
 
 // imports
 var utils = require('./utils');
@@ -15,7 +16,7 @@ var utils = require('./utils');
  * @param configuration['dbName'] Name for the IndexedDB
  * @return The newly created backend.
  */
-PersistentQuadBackend = function (configuration, callback) {
+var PersistentQuadBackend = function (configuration, callback) {
     var that = this;
 
     if (arguments !== 0) {

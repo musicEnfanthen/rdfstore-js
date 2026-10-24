@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Fork of Antonio Garrote's `rdfstore-js` (maintained by musicEnfanthen): an RDF graph store in plain CommonJS JavaScript that supports SPARQL 1.0 and most of SPARQL 1.1 Update. It runs in Node (`^22.22.3 || >= 24.15.0`) and in the browser (esbuild bundle). The package manager is Yarn 4 via corepack (`packageManager: yarn@4.16.0`).
+Fork of Antonio Garrote's `rdfstore-js` (maintained by musicEnfanthen): an RDF graph store in plain CommonJS JavaScript that supports SPARQL 1.0 and most of SPARQL 1.1 Update. It runs in Node (`^22.23.4 || >= 24.22.1`) and in the browser (esbuild bundle). The package manager is Yarn 4 via corepack (`packageManager: yarn@4.16.0`).
 
 ## Commands
 
@@ -14,8 +14,9 @@ yarn unit                    # regenerate parser, then run all Jasmine specs
 yarn specs                   # run Jasmine specs only (skips parser regeneration)
 yarn e2e                     # all e2e scripts in e2e/ (basic, comprehensive, readme, esm)
 yarn test                    # parse-grammar + specs + e2e
-yarn build                   # parse-grammar + esbuild bundle -> dist/rdfstore.js + dist/rdfstore_min.js
+yarn build                   # parse-grammar + esbuild bundles -> dist/rdfstore{,_min}.js (IIFE) + dist/rdfstore{,_min}.mjs (ESM)
 yarn parse-grammar           # regenerate src/parser.js from grammar/sparql_query.grammar
+yarn lint                    # ESLint (no-undef only) over src/, without parser.js and perftest/
 ```
 
 Run a single spec file, or filter by spec name:
@@ -25,19 +26,22 @@ yarn jasmine spec/store_spec.js
 yarn jasmine spec/query_engine_spec.js --filter="some describe/it text"
 ```
 
-A single e2e script: `yarn e2e:basic`, `yarn e2e:comprehensive`, `yarn e2e:readme`, `yarn e2e:esm`. `e2e:esm` imports `dist/rdfstore_min.js`, so run `yarn build` first if `src/` changed.
+A single e2e script: `yarn e2e:basic`, `yarn e2e:comprehensive`, `yarn e2e:readme`, `yarn e2e:esm`. `e2e:esm` imports the package as Node does (`src/store.js`), checks that the `browser` condition resolves to `dist/rdfstore.mjs`, and runs queries against that bundle. Run `yarn build` before `yarn e2e` or `yarn test`: otherwise the test fails (no bundle) or checks a stale one.
 
-CI ([.github/workflows/main.yml](.github/workflows/main.yml)) runs `yarn unit`, `yarn e2e`, then `yarn build` on Node 22.22, 24.16 and 26.x. There is no linter configured.
+CI ([.github/workflows/main.yml](.github/workflows/main.yml)) runs `yarn lint`, `yarn unit`, `yarn build`, then `yarn e2e` on Node 22.x, 24.x and 26.x, each with the newest patch release (`check-latest`).
 
 ## Generated / committed artifacts
 
 - [src/parser.js](src/parser.js) (~16k lines) is **generated** by [Peggy](https://peggyjs.org/) from [grammar/sparql_query.grammar](grammar/sparql_query.grammar) via [grammar/parse_grammar.js](grammar/parse_grammar.js). Never edit it by hand: change the grammar and run `yarn parse-grammar`. It is committed. `yarn unit`, `yarn test` and `yarn build` regenerate it on every run.
-- `dist/rdfstore.js` and `dist/rdfstore_min.js` are build outputs and are also committed, but **only rebuilt when cutting a release**. If you run `yarn build` to verify a change, discard the output with `git checkout -- dist`. The package `exports` map points `require` to `src/store.js` and `import` to `dist/rdfstore_min.js`, so ESM consumers (and `e2e:esm`) only see changes after a rebuild.
-- [esbuild.config.mjs](esbuild.config.mjs) bundles `src/store.js` as an IIFE with global `rdfstore`. It aliases Node built-ins (`http`, `https`, `url`, `fs`, `path`) to [stubs/empty.js](stubs/empty.js).
+- `dist/rdfstore.js`, `dist/rdfstore_min.js` (IIFE, global `rdfstore`) and `dist/rdfstore.mjs`, `dist/rdfstore_min.mjs` (ES module, from [src/index.mjs](src/index.mjs)) are build outputs and are also committed, but **only rebuilt when cutting a release**. If you run `yarn build` to verify a change, discard the output with `git checkout -- dist`, and delete any `dist/*.mjs` that `git status` lists as untracked (`git checkout` does not remove them). Leftovers can make e2e pass for the wrong reason.
+- The package `exports` map sends the `browser` condition (browser bundlers) to `dist/rdfstore.mjs` and everything else, so Node's `require` and `import`, to `src/store.js`. Node's ESM gets the named exports from the CommonJS source via its export detection. Browser consumers only see `src/` changes after a rebuild. `./dist/*` is exported for script-tag and CDN paths.
+- [esbuild.config.mjs](esbuild.config.mjs) bundles `src/store.js` as an IIFE with global `rdfstore` and [src/index.mjs](src/index.mjs) as an ES module. Both builds alias Node built-ins (`http`, `https`, `url`, `fs`, `path`) to [stubs/empty.js](stubs/empty.js), and the `n3ParserOnly` plugin narrows `require('n3')` in [src/rvn3_parser.js](src/rvn3_parser.js) to `export { Parser } from "n3"`, so the bundles carry only the N3.js parser (about 170 kB smaller). If `src/` needs more of n3 (Writer, Store, …), extend that re-export, otherwise it is `undefined` in the browser bundles only. Node uses the full `n3` package.
 
 ## Architecture
 
 Everything is callback-based (`callback(err, result)`) and asynchronous. There are no Promises in the core.
+
+**Every `src/` module is strict mode** (`"use strict";` at the top), so the CommonJS entry behaves like the ES module bundle. Declare every name with `var`: an implicit global throws in strict mode. [eslint.config.mjs](eslint.config.mjs) enables only `no-undef` to catch this statically, including on paths the specs never run. It cannot see `this` inside plain callbacks, which is `undefined` in strict mode: capture `var that = this;` in the method instead.
 
 **Layering** (from the public API down to storage):
 

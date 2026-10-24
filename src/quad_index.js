@@ -1,3 +1,5 @@
+"use strict";
+
 var BaseTree = require("./btree").Tree;
 var _ = require('./utils');
 var async = require('./utils');
@@ -10,7 +12,7 @@ var async = require('./utils');
  * A Tree node augmented with BPlusTree
  * node structures
  */
-NodeKey = function(components, order) {
+var NodeKey = function(components, order) {
     this.subject = components.subject;
     this.predicate = components.predicate;
     this.object = components.object;
@@ -46,7 +48,7 @@ NodeKey.prototype.comparator = function(keyPattern) {
  *
  * A pattern with some variable components
  */
-Pattern = function (components) {
+var Pattern = function (components) {
     this.subject = components.subject;
     this.predicate = components.predicate;
     this.object = components.object;
@@ -87,7 +89,7 @@ Pattern = function (components) {
  * @param callback
  * @constructor
  */
-QuadIndex = function (params, callback) {
+var QuadIndex = function (params, callback) {
     if (arguments != 0) {
         this.componentOrder = params.componentOrder;
 

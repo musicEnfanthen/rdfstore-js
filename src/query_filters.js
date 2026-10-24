@@ -1,8 +1,10 @@
+"use strict";
+
 var Utils = require('./utils');
 var     _ = Utils;
 var async = require('./utils');
 
-QueryFilters = {};
+var QueryFilters = {};
 
 var xmlSchema = "http://www.w3.org/2001/XMLSchema#";
 
@@ -230,7 +232,15 @@ QueryFilters.runDistinct = function(projectedBindings, projectionVariables) {
 // @todo add more aggregation functions here
 QueryFilters.runAggregator = function(aggregator, bindingsGroup, queryEngine, dataset, env) {
     if(bindingsGroup == null || bindingsGroup.length === 0) {
-        return QueryFilters.ebvError();
+        // an aggregate without GROUP BY over no solutions: SPARQL 1.1 defines 0 for COUNT, SUM, AVG and "" for GROUP_CONCAT
+        var aggregateType = aggregator.expression != null ? aggregator.expression.aggregateType : null;
+        if(aggregateType === 'count' || aggregateType === 'sum' || aggregateType === 'avg') {
+            return {token: 'literal', type:xmlSchema+"integer", value:'0'};
+        } else if(aggregateType === 'group_concat') {
+            return {token: 'literal', type:null, value:''};
+        }
+        // MIN, MAX and anything else stay unbound, like an unmatched OPTIONAL variable
+        return null;
     } else if(aggregator.token === 'variable' && aggregator.kind == 'var') {
         return bindingsGroup[0][aggregator.value.value];
     } else if(aggregator.token === 'variable' && aggregator.kind === 'aliased') {
@@ -368,9 +378,27 @@ QueryFilters.runAggregator = function(aggregator, bindingsGroup, queryEngine, da
 
                 aggregated.value =''+aggregated.value;
                 return aggregated;
-            } else {
-                var ebv = QueryFilters.runFilter(aggregate.expression, bindingsGroup[0], dataset, {blanks:{}, outCache:{}});
-                return ebv;
+            } else if(aggregator.expression.aggregateType === 'group_concat') {
+                var distinct = {};
+                var values = [];
+                var separator = aggregator.expression.separator != null ? aggregator.expression.separator : " ";
+                for(var i=0; i< bindingsGroup.length; i++) {
+                    var bindings = bindingsGroup[i];
+                    var ebv = QueryFilters.runFilter(aggregator.expression.expression, bindings, queryEngine, dataset, env);
+                    if(!QueryFilters.isEbvError(ebv) && ebv.token === 'literal') {
+                        if(aggregator.expression.distinct != null && aggregator.expression.distinct != '') {
+                            var key = Utils.hashTerm(ebv);
+                            if(distinct[key] == null) {
+                                distinct[key] = true;
+                                values.push(ebv.value);
+                            }
+                        } else {
+                            values.push(ebv.value);
+                        }
+                    }
+                }
+
+                return {token: 'literal', type:null, value:values.join(separator)};
             }
         }
     }

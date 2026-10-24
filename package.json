@@ -1,6 +1,6 @@
 {
   "name": "rdfstore",
-  "version": "0.9.18-alpha.23",
+  "version": "0.9.18-alpha.24",
   "description": "RDF graph store supporting the SPARQL query language",
   "keywords": [
     "RDF",
@@ -20,7 +20,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/musicEnfanthen/rdfstore-js.git"
+    "url": "https://github.com/webern-unibas-ch/rdfstore-js.git"
   },
   "licenses": [
     {
@@ -32,7 +32,7 @@
     "\n---HELPER---": "",
     "clean-dist": "rimraf ./dist",
     "build:bundle": "yarn node esbuild.config.mjs",
-    "build:minify": "esbuild dist/rdfstore.js --minify --outfile=dist/rdfstore_min.js",
+    "build:minify": "esbuild dist/rdfstore.js --minify --outfile=dist/rdfstore_min.js && esbuild dist/rdfstore.mjs --minify --outfile=dist/rdfstore_min.mjs",
     "build:browser": "yarn clean-dist && yarn build:bundle && yarn build:minify || exit 1",
     "e2e:basic": "yarn node e2e/test-basic.js",
     "e2e:comprehensive": "yarn node e2e/test-comprehensive.js",
@@ -43,6 +43,7 @@
     "specs": "jasmine ./spec/*.js",
     "\n---MAIN---": "",
     "build": "yarn parse-grammar && yarn build:browser",
+    "lint": "eslint src",
     "e2e": "yarn e2e:basic && yarn e2e:comprehensive && yarn e2e:readme && yarn e2e:esm",
     "unit": "yarn parse-grammar && yarn specs",
     "test": "yarn parse-grammar && yarn specs && yarn e2e"
@@ -51,17 +52,21 @@
   "type": "commonjs",
   "exports": {
     ".": {
-      "require": "./src/store.js",
-      "import": "./dist/rdfstore_min.js"
-    }
+      "browser": "./dist/rdfstore.mjs",
+      "default": "./src/store.js"
+    },
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
   },
   "dependencies": {
     "jsonld": "^9.0.0",
-    "n3": "^2.0.3"
+    "n3": "^2.13.0"
   },
   "devDependencies": {
     "async": "^3.2.6",
     "esbuild": "^0.28.0",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
     "jasmine": "^7.0.0",
     "jasmine-reporters": "^2.5.2",
     "lodash": "^4.18.1",
@@ -69,7 +74,7 @@
     "rimraf": "^6.1.3"
   },
   "engines": {
-    "node": "^22.22.3 || >= 24.15.0",
+    "node": "^22.23.4 || >= 24.22.1",
     "yarn": "^4.16.0"
   },
   "packageManager": "yarn@4.16.0"
