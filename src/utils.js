@@ -454,6 +454,25 @@ var seq = function (/* functions... */) {
 };
 
 
+// Thrown values that are not Errors (some builtins throw strings) are wrapped, so callers always get an Error.
+var toError = function (e) {
+    return (e instanceof Error) ? e : new Error(String(e));
+};
+
+// Wraps a callback so that only its first invocation runs; `called` tells whether it already ran.
+var once = function (callback) {
+    var wrapped = function () {
+        if (wrapped.called) {
+            return;
+        }
+        wrapped.called = true;
+        return callback.apply(this, arguments);
+    };
+    wrapped.called = false;
+    return wrapped;
+};
+
+
 var isWorker = function() {
     if(typeof(process) === "undefined" || process.browser === true) {
         if (typeof(window) === "undefined") {
@@ -495,6 +514,8 @@ module.exports = {
     eachSeries: eachSeries,
     eachParallel: eachParallel,
     seq: seq,
+    once: once,
+    toError: toError,
     yieldFrequency: function(value){
         yieldFrequency = value;
     }

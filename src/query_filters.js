@@ -3,6 +3,7 @@
 var Utils = require('./utils');
 var     _ = Utils;
 var async = require('./utils');
+var NonSupportedSparqlFeatureError = require('./abstract_query_tree').NonSupportedSparqlFeatureError;
 
 var QueryFilters = {};
 
@@ -14,11 +15,17 @@ QueryFilters.checkFilters = function(pattern, bindings, nullifyErrors, dataset, 
         filters = pattern.filter;
     var nullified = [];
     if(filters==null || filters.length === 0 || pattern.length != null) {
-        return callback(bindings);
+        return callback(null, bindings);
     }
-    QueryFilters.preprocessExistentialFilters(filters, bindings, queryEngine, dataset, queryEnv, function(preProcessedFilters){
+    QueryFilters.preprocessExistentialFilters(filters, bindings, queryEngine, dataset, queryEnv, function(err, preProcessedFilters){
+        if(err != null) {
+            return callback(err);
+        }
         async.eachSeries(preProcessedFilters, function(filter,k){
-            QueryFilters.run(filter.value, bindings, nullifyErrors, dataset, queryEnv, queryEngine, function(filteredBindings){
+            QueryFilters.run(filter.value, bindings, nullifyErrors, dataset, queryEnv, queryEngine, function(err, filteredBindings){
+                if(err != null) {
+                    return k(err);
+                }
                 var acum = [];
                 for(var i=0; i<filteredBindings.length; i++) {
                     var filteredBinding = filteredBindings[i];
@@ -31,8 +38,12 @@ QueryFilters.checkFilters = function(pattern, bindings, nullifyErrors, dataset, 
                 bindings = acum;
                 k();
             });
-        },function(){
-            callback(bindings.concat(nullified));
+        },function(err){
+            if(err != null) {
+                callback(err);
+            } else {
+                callback(null, bindings.concat(nullified));
+            }
         });
     });
 };
@@ -52,7 +63,10 @@ QueryFilters.preprocessExistentialFilters = function(filters, bindings, queryEng
                     var cloned = _.clone(args[0],true);
                     var ast = queryEngine.abstractQueryTree.parseSelect({pattern:cloned}, bindings);
                     ast = queryEngine.abstractQueryTree.bind(ast.pattern, bindings);
-                    queryEngine.executeSelectUnit([ {kind:'*'} ], dataset, ast, env, function(result){
+                    queryEngine.executeSelectUnit([ {kind:'*'} ], dataset, ast, env, function(err, result){
+                        if(err != null) {
+                            return kk(err);
+                        }
                         var success = null;
                         if(builtincall === 'exists') {
                             success = QueryFilters.ebvBoolean(result.length!==0);
@@ -65,7 +79,10 @@ QueryFilters.preprocessExistentialFilters = function(filters, bindings, queryEng
                         bindingsResults[bindingsKey] = success;
                         kk();
                     });
-                }, function(){
+                }, function(err){
+                    if(err != null) {
+                        return k(err);
+                    }
                     filter.value.origArgs = filter.value.args;
                     filter.value.args = bindingsResults;
                     preProcessedFilters.push(filter);
@@ -74,28 +91,40 @@ QueryFilters.preprocessExistentialFilters = function(filters, bindings, queryEng
             });
         } else if (filter.value.expressionType === "conditionalor" || filter.value.expressionType === "conditionaland") {
             var operands = _.map(filter.value.operands, function(operand){ return {"value": operand}; });
-            QueryFilters.preprocessExistentialFilters(operands, bindings, queryEngine, dataset, env, function(preprocessedOperands){
+            QueryFilters.preprocessExistentialFilters(operands, bindings, queryEngine, dataset, env, function(err, preprocessedOperands){
+                if(err != null) {
+                    return k(err);
+                }
                 filter.value.operands = preprocessedOperands.map(function(operand){ return operand.value; });
                 preProcessedFilters.push(filter);
                 k();
             });
         } else if (filter.value.expressionType === "multiplicativeexpression") {
             var operands = _.map(filter.value.factors, function(operand){ return {"value": operand}; });
-            QueryFilters.preprocessExistentialFilters(operands, bindings, queryEngine, dataset, env, function(preprocessedOperands){
+            QueryFilters.preprocessExistentialFilters(operands, bindings, queryEngine, dataset, env, function(err, preprocessedOperands){
+                if(err != null) {
+                    return k(err);
+                }
                 filter.value.factors = preprocessedOperands.map(function(operand){ return operand.value; });
                 preProcessedFilters.push(filter);
                 k();
             });
         } else if (filter.value.expressionType === "additiveexpression") {
             var operands = _.map(filter.value.summands, function(operand){ return {"value": operand}; });
-            QueryFilters.preprocessExistentialFilters(operands, bindings, queryEngine, dataset, env, function(preprocessedOperands){
+            QueryFilters.preprocessExistentialFilters(operands, bindings, queryEngine, dataset, env, function(err, preprocessedOperands){
+                if(err != null) {
+                    return k(err);
+                }
                 filter.value.summands = preprocessedOperands.map(function(operand){ return operand.value; });
                 preProcessedFilters.push(filter);
                 k();
             });
         } else if(filter.value.expressionType === "relationalexpression") {
             var operands = [ {"value": filter.value.op1}, {"value": filter.value.op2}];
-            QueryFilters.preprocessExistentialFilters(operands, bindings, queryEngine, dataset, env, function(preprocessedOperands){
+            QueryFilters.preprocessExistentialFilters(operands, bindings, queryEngine, dataset, env, function(err, preprocessedOperands){
+                if(err != null) {
+                    return k(err);
+                }
                 filter.value.op1 = preprocessedOperands[0].value;
                 filter.value.op2 = preprocessedOperands[1].value;
                 preProcessedFilters.push(filter);
@@ -106,7 +135,10 @@ QueryFilters.preprocessExistentialFilters = function(filters, bindings, queryEng
                 var operands = _.map(filter.value.args, function (operand) {
                     return {"value": operand};
                 });
-                QueryFilters.preprocessExistentialFilters(operands, bindings, queryEngine, dataset, env, function (preprocessedOperands) {
+                QueryFilters.preprocessExistentialFilters(operands, bindings, queryEngine, dataset, env, function(err, preprocessedOperands){
+                    if(err != null) {
+                        return k(err);
+                    }
                     filter.value.args = preprocessedOperands.map(function (operand) {
                         return operand.value;
                     });
@@ -121,8 +153,8 @@ QueryFilters.preprocessExistentialFilters = function(filters, bindings, queryEng
             preProcessedFilters.push(filter);
             k();
         }
-    }, function(){
-        cb(preProcessedFilters);
+    }, function(err){
+        cb(err, preProcessedFilters);
     });
 };
 
@@ -185,10 +217,9 @@ QueryFilters.run = function(filterExpr, bindings, nullifyFilters, dataset, env, 
         var filteredBindings = [];
         for(var i=0; i<bindings.length; i++) {
             var thisDenormBindings = denormBindings[i];
-            var ebv = QueryFilters.runFilter(filterExpr, thisDenormBindings, queryEngine, dataset, env);
             // ebv can be directly a RDFTerm (e.g. atomic expression in filter)
             // this additional call to ebv will return -> true/false/error
-            var ebv = QueryFilters.ebv(ebv);
+            var ebv = QueryFilters.ebv(QueryFilters.runFilter(filterExpr, thisDenormBindings, queryEngine, dataset, env));
             //console.log("EBV:")
             //console.log(ebv)
             //console.log("FOR:")
@@ -210,7 +241,7 @@ QueryFilters.run = function(filterExpr, bindings, nullifyFilters, dataset, env, 
                 }
             }
         }
-        callback(filteredBindings);
+        callback(null, filteredBindings);
     });
 };
 
@@ -404,7 +435,21 @@ QueryFilters.runAggregator = function(aggregator, bindingsGroup, queryEngine, da
     }
 };
 
+// Evaluates an expression; every sub-expression goes through here as well. An exception while evaluating
+// (e.g. a builtin applied to an unbound variable, or a failing custom function) is an expression error, as
+// in SPARQL, so || and && can still decide. An unsupported feature is noted on the query environment, and
+// the query reports it once it has finished (see QueryEngine.executeSelect).
 QueryFilters.runFilter = function(filterExpr, bindings, queryEngine, dataset, env) {
+    try {
+        return QueryFilters.runExpression(filterExpr, bindings, queryEngine, dataset, env);
+    } catch(e) {
+        if(e instanceof NonSupportedSparqlFeatureError && env != null && env.unsupportedFeature == null)
+            env.unsupportedFeature = e;
+        return QueryFilters.ebvError();
+    }
+};
+
+QueryFilters.runExpression = function(filterExpr, bindings, queryEngine, dataset, env) {
     //console.log("RUNNING FILTER");
     //console.log(filterExpr);
     if(filterExpr.expressionType != null) {
@@ -905,8 +950,6 @@ QueryFilters.effectiveTypeValue = function(val){
         }
     } else {
         // @todo
-        console.log("not implemented yet");
-        console.log(val);
         throw("value not supported in operations yet");
     }
 };
@@ -1445,7 +1488,7 @@ QueryFilters.runBuiltInCall = function(builtincall, args, bindings, queryEngine,
         } else if(queryEngine.customFns[builtincall] != null) {
             return queryEngine.customFns[builtincall](QueryFilters, ops);
         } else {
-            throw ("Builtin call "+builtincall+" not implemented yet");
+            throw new NonSupportedSparqlFeatureError(builtincall, "Builtin call "+builtincall+" not implemented yet");
         }
     }
 };
