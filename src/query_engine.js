@@ -1204,6 +1204,54 @@ QueryEngine.prototype.executeAndBGP = function(projection, dataset, pattern, env
     });
 };
 
+// LeftJoin keeps a left solution if none of its merged solutions passes the OPTIONAL's filter
+// (SPARQL 1.1 §18.5). checkFilters returns the failed merged solutions wrapped (__nullify__): each
+// such left solution comes back once, with the right side's variables unbound and the values of
+// the BINDs, which ran on the merged solutions.
+var restoreFailedLeftSolutions = function(bindings, leftSolutions, set2, binds) {
+    var acum = [];
+    var failed = [];
+    // left solutions already represented in acum
+    var kept = new Set();
+    for(var i=0; i<bindings.length; i++) {
+        if(bindings[i]["__nullify__"] === true) {
+            failed.push(bindings[i]["bindings"]);
+        } else {
+            acum.push(bindings[i]);
+            kept.add(leftSolutions.get(bindings[i]) || bindings[i]);
+        }
+    }
+
+    var rightVars = {};
+    for(i=0; i<set2.length; i++) {
+        for(var p in set2[i]) {
+            rightVars[p] = true;
+        }
+    }
+    for(i=0; i<failed.length; i++) {
+        var merged = failed[i];
+        // an unmatched left solution was not merged
+        var left = leftSolutions.get(merged) || merged;
+        if(kept.has(left)) {
+            continue;
+        }
+        kept.add(left);
+        var solution = {};
+        for(p in left) {
+            solution[p] = left[p];
+        }
+        QueryPlan.augmentMissingBindings(solution, rightVars);
+        for(var j=0; j<binds.length; j++) {
+            var bindVar = binds[j].as.value;
+            if(bindVar in merged) {
+                solution[bindVar] = merged[bindVar];
+            }
+        }
+        acum.push(solution);
+    }
+    return acum;
+};
+
 QueryEngine.prototype.executeLEFT_JOIN = function(projection, dataset, patterns, env, callback) {
     var setQuery1 = patterns.lvalue;
     var setQuery2 = patterns.rvalue;
@@ -1212,72 +1260,25 @@ QueryEngine.prototype.executeLEFT_JOIN = function(projection, dataset, patterns,
         this.executeSelectUnit(projection, dataset, setQuery2, env, callback);
     } else {
         var that = this;
-        var acum, duplicates;
 
         this.executeSelectUnits(projection, dataset, setQuery1, setQuery2, env, true, function(err, set1, set2){
             if(err != null) {
                 callback(err);
             } else {
-                var result = QueryPlan.leftOuterJoinBindings(set1, set2);
+                // merged solution -> the left solution it came from, only needed to undo a failed filter
+                var leftSolutions = patterns.filter != null && patterns.filter.length > 0 ? new Map() : null;
+                var result = QueryPlan.leftOuterJoinBindings(set1, set2, leftSolutions);
                 that.runBinds(patterns.binds, result, dataset, env, function(err, bindings){
                     if(err != null) {
                         callback(err);
+                    } else if(leftSolutions == null) {
+                        callback(null, bindings);
                     } else {
-                        QueryFilters.checkFilters(patterns, result, true, dataset, env, that, function(err, bindings){
+                        QueryFilters.checkFilters(patterns, bindings, true, dataset, env, that, function(err, bindings){
                             if(err != null) {
                                 callback(err);
                             } else {
-                                // rows that failed the OPTIONAL's filter come back wrapped: keep their left part only
-                                var vars = [];
-                                var vars1 = {};
-                                for(var p in set1[0]) {
-                                    vars1[p] = true;
-                                }
-                                for(p in set2[0]) {
-                                    if(vars1[p] != true) {
-                                        vars.push(p);
-                                    }
-                                }
-                                acum = [];
-                                duplicates = {};
-                                for(var i=0; i<bindings.length; i++) {
-                                    if(bindings[i]["__nullify__"] === true) {
-                                        for(var j=0; j<vars.length; j++) {
-                                            bindings[i]["bindings"][vars[j]] = null;
-                                        }
-                                        var idx = [];
-                                        var idxColl = [];
-                                        for(var p in bindings[i]["bindings"]) {
-                                            if(bindings[i]["bindings"][p] != null) {
-                                                idx.push(p+bindings[i]["bindings"][p]);
-                                                idx.sort();
-                                                idxColl.push(idx.join(""));
-                                            }
-                                        }
-                                        // reject duplicates -> (set union)
-                                        if(duplicates[idx.join("")]==null) {
-                                            for(j=0; j<idxColl.length; j++) {
-                                                //console.log(" - "+idxColl[j])
-                                                duplicates[idxColl[j]] = true;
-                                            }
-                                            ////duplicates[idx.join("")]= true
-                                            acum.push(bindings[i]["bindings"]);
-                                        }
-                                    } else {
-                                        acum.push(bindings[i]);
-                                        var idx = [];
-                                        var idxColl = [];
-                                        for(var p in bindings[i]) {
-                                            idx.push(p+bindings[i][p]);
-                                            idx.sort();
-                                            //console.log(idx.join("") + " -> ok");
-                                            duplicates[idx.join("")] = true;
-                                        }
-
-                                    }
-                                }
-
-                                callback(null, acum);
+                                callback(null, restoreFailedLeftSolutions(bindings, leftSolutions, set2, patterns.binds || []));
                             }
                         });
                     }
