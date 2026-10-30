@@ -9,6 +9,7 @@ var PersistentLexicon = require("./persistent_lexicon").PersistentLexicon;
 var RDFModel = require("./rdf_model");
 var _ = require("./utils");
 var NetworkTransport = require("./network_transport").NetworkTransport;
+var createStorePromises = require("./store_promises").createStorePromises;
 
 
 /**
@@ -38,7 +39,8 @@ var Store = function(arg1, arg2) {
 		params   = {};
 		callback = arg1;
     } else if(arguments.length > 1) {
-		params   = arg1;
+		// a copy: the store adds treeOrder, backend and lexicon to its params
+		params   = Object.assign({}, arg1);
 		callback = arg2;
     } else {
 	throw("An optional argument map and a callback must be provided");
@@ -91,6 +93,18 @@ var Store = function(arg1, arg2) {
  * associated to this graph instance.
  */
 Store.prototype.rdf = RDFModel.rdf;
+
+/**
+ * Promise versions of the asynchronous methods, see src/store_promises.js.
+ * Built on first access, so stores that only use callbacks don't pay for it.
+ */
+Object.defineProperty(Store.prototype, "promises", {
+    get: function() {
+	var promises = createStorePromises(this);
+	Object.defineProperty(this, "promises", {value: promises});
+	return promises;
+    }
+});
 Store.prototype.rdf.api = RDFModel;
 
 /**
@@ -715,6 +729,8 @@ Store.prototype.load = function(){
 			options = {};
 		} else {
 			graph = this.rdf.createNamedNode(options.graph || this.engine.lexicon.defaultGraphUri);
+			// a copy without graph: the caller's options stay reusable
+			options = Object.assign({}, options);
 			delete options['graph'];
 		}
 		callback= arguments[3] || function(){};
@@ -918,6 +934,19 @@ Store.yieldFrequency = function(val) {
     _.yieldFrequency(val);
 };
 
+/**
+ * Promise version of <code>create</code>: resolves with the new store.
+ * The store's own promise methods are in <code>store.promises</code>.
+ *
+ * @param {Object} [params] configuration parameters, see the Store constructor
+ */
+var promises = {
+    create: function(params) {
+        return _.toPromise(function(cb) { new Store(params || {}, cb); });
+    }
+};
+
 module.exports.Store = Store;
 module.exports.create = create;
 module.exports.connect = connect;
+module.exports.promises = promises;
