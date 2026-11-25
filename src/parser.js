@@ -578,19 +578,9 @@ function peg$parse(input, options) {
     }
   }
   function peg$f1(decls) {
-    // the last BASE applies
-    var b = null;
-    var pfx = [];
-    for(var i=0; i<decls.length; i++) {
-	if(decls[i].token === 'base') {
-	    b = decls[i];
-	} else {
-	    pfx.push(decls[i]);
-	}
-    }
+    // in order: each BASE and PREFIX IRI resolves against the BASE before it (QueryEngine.registerNsInEnvironment)
     return { token: 'prologue',
-	base: b,
-	prefixes: pfx }
+	declarations: decls }
   }
   function peg$f2(i) {
     registerDefaultPrefix(i);
@@ -931,13 +921,17 @@ query.token = 'query';
 query.kind = 'update'
 query.prologue = p;
 
+// the prologue of each operation: its declarations also apply to the operations after it
 var units = [u];
+var prologues = [p];
 
 if(us != null && us.length != null && us[3] != null && us[3].units != null) {
     units = units.concat(us[3].units);
+    prologues = prologues.concat(us[3].prologues);
 }
 
 query.units = units;
+query.prologues = prologues;
 return query;
   }
   function peg$f30(sg, dg) {

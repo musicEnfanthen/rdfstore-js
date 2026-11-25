@@ -37,31 +37,29 @@ QueryEngine.prototype.setCustomFunctions = function(customFns) {
 };
 
 // Utils
+// Adds the PREFIX and BASE declarations of a prologue to env, after those it has (the default prefixes for a new env)
 QueryEngine.prototype.registerNsInEnvironment = function(prologue, env) {
-    var prefixes = [];
-    if(prologue != null && prologue.prefixes != null) {
-        prefixes =prologue.prefixes;
-    }
-    var toSave = {};
-
-    // adding default prefixes;
-    for(var p in this.defaultPrefixes) {
-        toSave[p] = this.defaultPrefixes[p];
+    var namespaces = {};
+    var p;
+    var previous = env.namespaces || this.defaultPrefixes;
+    for(p in previous) {
+        namespaces[p] = previous[p];
     }
 
-    for(var i=0; i<prefixes.length; i++) {
-        var prefix = prefixes[i];
-        if(prefix.token === "prefix") {
-            toSave[prefix.prefix] = prefix.local;
+    // in order: a BASE resolves against the BASE before it, a PREFIX IRI against the BASE in effect there
+    var base = env.base || null;
+    var declarations = prologue != null && prologue.declarations != null ? prologue.declarations : [];
+    for(var i=0; i<declarations.length; i++) {
+        var declaration = declarations[i];
+        if(declaration.token === "base") {
+            base = Utils.resolveIri(base, declaration.value);
+        } else if(declaration.token === "prefix") {
+            namespaces[declaration.prefix] = Utils.resolveIri(base, declaration.local);
         }
     }
 
-    env.namespaces = toSave;
-    if(prologue!=null && prologue.base && typeof(prologue.base) === 'object') {
-        env.base = prologue.base.value;
-    } else {
-        env.base = null;
-    }
+    env.namespaces = namespaces;
+    env.base = base;
 };
 
 QueryEngine.prototype.applyModifier = function(modifier, projectedBindings) {
@@ -1472,12 +1470,19 @@ QueryEngine.prototype.executeUpdate = function(syntaxTree, callback) {
 
     // environment for the operation -> base ns, declared ns, etc.
     var queryEnv = {blanks:{}, outCache:{}};
-    this.registerNsInEnvironment(prologue, queryEnv);
+    var prologues = syntaxTree.prologues || [prologue];
+    this.registerNsInEnvironment(prologues[0], queryEnv);
 
     // operations separated by ';' run one after the other; the first error stops the request
     var lastResult;
+    var index = 0;
     async.eachSeries(units, function(unit, k){
         var aqt;
+        if(index > 0) {
+            // the declarations before this operation
+            that.registerNsInEnvironment(prologues[index], queryEnv);
+        }
+        index++;
         try {
             aqt = that.abstractQueryTree.parseExecutableUnit(unit);
         } catch(e) {
