@@ -136,10 +136,10 @@ This is a list of the different kind of queries currently implemented:
 Install the fork directly from GitHub, pinned to a release tag:
 
 ```bash
-$ yarn add rdfstore@webern-unibas-ch/rdfstore-js#v0.9.18-alpha.24
+$ yarn add rdfstore@webern-unibas-ch/rdfstore-js#v0.9.18-alpha.25
 ```
 
-With npm: `npm install github:webern-unibas-ch/rdfstore-js#v0.9.18-alpha.24`. All available versions are listed under [Tags](https://github.com/webern-unibas-ch/rdfstore-js/tags).
+With npm: `npm install github:webern-unibas-ch/rdfstore-js#v0.9.18-alpha.25`. All available versions are listed under [Tags](https://github.com/webern-unibas-ch/rdfstore-js/tags).
 
 ## Building
 

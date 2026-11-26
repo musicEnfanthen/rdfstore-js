@@ -1,6 +1,6 @@
 {
   "name": "rdfstore",
-  "version": "0.9.18-alpha.24",
+  "version": "0.9.18-alpha.25",
   "description": "RDF graph store supporting the SPARQL query language",
   "keywords": [
     "RDF",
