@@ -1,14 +1,14 @@
 "use strict";
 
 // imports
-var QueryEngine = require("./query_engine").QueryEngine;
-var InMemoryQuadBackend = require("./quad_backend").QuadBackend;
-var PersistentBackend = require("./persistent_quad_backend").PersistentQuadBackend;
-var InMemoryLexicon = require("./lexicon").Lexicon;
-var PersistentLexicon = require("./persistent_lexicon").PersistentLexicon;
-var RDFModel = require("./rdf_model");
-var _ = require("./utils");
-var createStorePromises = require("./store_promises").createStorePromises;
+const QueryEngine = require("./query_engine").QueryEngine;
+const InMemoryQuadBackend = require("./quad_backend").QuadBackend;
+const PersistentBackend = require("./persistent_quad_backend").PersistentQuadBackend;
+const InMemoryLexicon = require("./lexicon").Lexicon;
+const PersistentLexicon = require("./persistent_lexicon").PersistentLexicon;
+const RDFModel = require("./rdf_model");
+const _ = require("./utils");
+const createStorePromises = require("./store_promises").createStorePromises;
 
 
 /**
@@ -30,9 +30,9 @@ var createStorePromises = require("./store_promises").createStorePromises;
  *       and GRAPH ?g ranges over all named graphs. Updates are not affected.</li>
  * </ul>
  */
-var Store = function(arg1, arg2) {
-    var callback = null;
-    var params   = null;
+const Store = function(arg1, arg2) {
+    let callback = null;
+    let params   = null;
 
     if(arguments.length == 0) {
 		params ={};
@@ -51,8 +51,8 @@ var Store = function(arg1, arg2) {
 		params['treeOrder'] = 15;
     }
 
-    var Lexicon = InMemoryLexicon;
-    var QuadBackend = InMemoryQuadBackend;
+    let Lexicon = InMemoryLexicon;
+    let QuadBackend = InMemoryQuadBackend;
     if(params['persistent'] === true){
 		Lexicon = PersistentLexicon;
 		QuadBackend = PersistentBackend;
@@ -61,12 +61,12 @@ var Store = function(arg1, arg2) {
     // (an object would key by source text)
     this.functionMap = new Map();
 
-    var that = this;
+    const that = this;
     this.customFns = {};
     new Lexicon(function(lexicon){
-	var createQuadBackend = function() {
+	const createQuadBackend = function() {
 	    new QuadBackend(params, function (backend) {
-		var createEngine = function() {
+		const createEngine = function() {
 		    params.backend = backend;
 		    params.lexicon = lexicon;
 		    that.engine = new QueryEngine(params);
@@ -103,7 +103,7 @@ Store.prototype.rdf = RDFModel.rdf;
  */
 Object.defineProperty(Store.prototype, "promises", {
     get: function() {
-	var promises = createStorePromises(this);
+	const promises = createStorePromises(this);
 	Object.defineProperty(this, "promises", {value: promises});
 	return promises;
     }
@@ -185,8 +185,8 @@ Store.prototype.execute = function() {
 	    arguments[3]);
     } else {
 
-	var queryString;
-	var callback;
+	let queryString;
+	let callback;
 
 	if(arguments.length === 1) {
 	    queryString = arguments[0];
@@ -212,12 +212,11 @@ Store.prototype.execute = function() {
  * @param {Function} [callback]
  */
 Store.prototype.executeWithEnvironment = function() {
-    var queryString, defaultGraphs, namedGraphs;
+    let queryString, defaultGraphs, namedGraphs, callback;
 
     if(arguments.length === 3) {
 	queryString   = arguments[0];
-	// JSDoc fails if this is pushed outside
-	var callback  = function(){};
+	callback      = function(){};
 	defaultGraphs = arguments[1];
 	namedGraphs   = arguments[2];
     } else if(arguments.length === 4) {
@@ -253,8 +252,8 @@ Store.prototype.executeWithEnvironment = function() {
  * @param {Functon} callback
  */
 Store.prototype.graph = function() {
-    var graphUri = null;
-    var callback = null;
+    let graphUri = null;
+    let callback = null;
     if(arguments.length === 1) {
 	callback = arguments[0] || function(){};
 	graphUri = this.engine.lexicon.defaultGraphUri;
@@ -293,9 +292,9 @@ Store.prototype.graph = function() {
  * @param {Function} callback
  */
 Store.prototype.node = function() {
-    var graphUri = null;
-    var callback = null;
-    var nodeUri  = null;
+    let graphUri = null;
+    let callback = null;
+    let nodeUri  = null;
     if(arguments.length === 2) {
 		nodeUri = arguments[0];
 		callback = arguments[1] || function(){};
@@ -344,7 +343,7 @@ Store.prototype.node = function() {
  * @param {Function} [callback] Function that will be invoked, once the event listener had been correctly set up.
  */
 Store.prototype.startObservingNode = function() {
-    var uri, graphUri, callback;
+    let uri, graphUri, callback;
 
     if(arguments.length === 2) {
 	uri = arguments[0];
@@ -391,9 +390,9 @@ Store.prototype.stopObservingNode = function(callback) {
  * @param {Function} [callback] optional function that will be invoked once the event listener is set up and the initial query has run (after the listener received its result), with the query's error or null.
  */
 Store.prototype.startObservingQuery = function() {
-    var query = arguments[0];
-    var callback = arguments[1];
-    var endCallback = arguments[2];
+    const query = arguments[0];
+    const callback = arguments[1];
+    const endCallback = arguments[2];
     if(endCallback!=null) {
 	this.engine.callbacksBackend.observeQuery(query, callback, endCallback);
     } else {
@@ -436,16 +435,16 @@ Store.prototype.stopObservingQuery = function(query) {
  * @param {Function} [readyCallback] invoked once the subscription has been registered
  */
 Store.prototype.subscribe = function(s, p, o, g, callback, readyCallback) {
-    var that = this;
-    var adapterCb = function(event,triples){
-		var acum = [];
-		var queryEnv = {blanks:{}, outCache:{}};
-		var bindings = [];
+    const that = this;
+    const adapterCb = function(event,triples){
+		const acum = [];
+		const queryEnv = {blanks:{}, outCache:{}};
+		const bindings = [];
 
 		_.each(triples, function(triple){
-	    	var s = RDFModel.buildRDFResource(triple.subject,bindings,that.engine,queryEnv);
-	    	var p = RDFModel.buildRDFResource(triple.predicate,bindings,that.engine,queryEnv);
-	    	var o = RDFModel.buildRDFResource(triple.object,bindings,that.engine,queryEnv);
+	    	const s = RDFModel.buildRDFResource(triple.subject,bindings,that.engine,queryEnv);
+	    	const p = RDFModel.buildRDFResource(triple.predicate,bindings,that.engine,queryEnv);
+	    	const o = RDFModel.buildRDFResource(triple.object,bindings,that.engine,queryEnv);
 	    	if(s!=null && p!=null && o!=null) {
 				triple = new RDFModel.Triple(s,p,o);
 				acum.push(triple);
@@ -468,8 +467,8 @@ Store.prototype.subscribe = function(s, p, o, g, callback, readyCallback) {
  * @param {Function} callback The event listener to be removed
  */
 Store.prototype.unsubscribe = function(callback) {
-    var adapters = this.functionMap.get(callback) || [];
-    for(var i=0; i<adapters.length; i++) {
+    const adapters = this.functionMap.get(callback) || [];
+    for(let i=0; i<adapters.length; i++) {
         this.engine.callbacksBackend.unsubscribe(adapters[i]);
     }
     this.functionMap.delete(callback);
@@ -518,9 +517,9 @@ Store.prototype.setDefaultPrefix = function(uri) {
  * @param {String} [callback] A callback function that will be invoked with a success notification and the number of triples inserted
  */
 Store.prototype.insert = function() {
-    var graph;
-    var triples;
-    var callback;
+    let graph;
+    let triples;
+    let callback;
     if(arguments.length === 1) {
 	triples = arguments[0];
 	callback= function(){};
@@ -535,8 +534,8 @@ Store.prototype.insert = function() {
 	throw("The triples to insert, an optional graph and callback must be provided");
     }
 
-    var query = "";
-    var that = this;
+    let query = "";
+    const that = this;
     triples.forEach(function(triple) {
 	query = query + that._nodeToQuery(triple.subject) + that._nodeToQuery(triple.predicate) + that._nodeToQuery(triple.object) + ".";
     });
@@ -552,7 +551,7 @@ Store.prototype.insert = function() {
 
 Store.prototype._nodeToQuery = function(term) {
     if(term.interfaceName === 'NamedNode') {
-	var resolvedUri = this.rdf.resolve(term.valueOf());
+	const resolvedUri = this.rdf.resolve(term.valueOf());
 	if(resolvedUri != null) {
 	    return "<" + resolvedUri + ">";
 	} else {
@@ -582,9 +581,9 @@ Store.prototype._nodeToQuery = function(term) {
  */
 Store.prototype.delete = function() {
 
-    var graph;
-    var triples;
-    var callback;
+    let graph;
+    let triples;
+    let callback;
     if(arguments.length === 1) {
 	triples = arguments[0];
 	callback= function(){};
@@ -599,8 +598,8 @@ Store.prototype.delete = function() {
 	throw("The triples to delete, an optional graph and callback must be provided");
     }
 
-    var query = "";
-    var that = this;
+    let query = "";
+    const that = this;
     triples.forEach(function(triple) {
 	query = query + that._nodeToQuery(triple.subject) + that._nodeToQuery(triple.predicate) + that._nodeToQuery(triple.object) + ".";
     });
@@ -628,8 +627,8 @@ Store.prototype.delete = function() {
  * @param {Function} [callback] a function that will be invoked with a success notification
  */
 Store.prototype.clear = function() {
-    var graph;
-    var callback;
+    let graph;
+    let callback;
 
     if(arguments.length === 0) {
 	graph = this.rdf.createNamedNode(this.engine.lexicon.defaultGraphUri);
@@ -644,7 +643,7 @@ Store.prototype.clear = function() {
 	throw("The optional graph and a callback must be provided");
     }
 
-    var query = "CLEAR GRAPH " + this._nodeToQuery(graph);
+    const query = "CLEAR GRAPH " + this._nodeToQuery(graph);
     this.engine.execute(query, callback);
 };
 
@@ -681,8 +680,8 @@ Store.prototype.registerDefaultNamespace = function(ns, prefix) {
  * specification in the default Profile.
  */
 Store.prototype.registerDefaultProfileNamespaces = function() {
-    var defaultNsMap = this.rdf.prefixes.values();
-    for (var p in defaultNsMap) {
+    const defaultNsMap = this.rdf.prefixes.values();
+    for (const p in defaultNsMap) {
 	this.registerDefaultNamespace(p,defaultNsMap[p]);
     }
 };
@@ -713,11 +712,11 @@ Store.prototype.registerDefaultProfileNamespaces = function() {
  * @param {Function} callback that will be invoked with a success notification and the number of triples loaded.
  */
 Store.prototype.load = function(){
-    var mediaType;
-    var data;
-    var graph;
-    var callback;
-    var options = {};
+    let mediaType;
+    let data;
+    let graph;
+    let callback;
+    let options = {};
 
     if(arguments.length === 3) {
 		graph = this.rdf.createNamedNode(this.engine.lexicon.defaultGraphUri);
@@ -744,17 +743,17 @@ Store.prototype.load = function(){
 
     if(mediaType === 'remote') {
 		data = this.rdf.createNamedNode(data);
-		var query = "LOAD <"+data.valueOf()+"> INTO GRAPH <"+graph.valueOf()+">";
+		const query = "LOAD <"+data.valueOf()+"> INTO GRAPH <"+graph.valueOf()+">";
 		this.engine.execute(query, callback);
     } else {
 
-		var that = this;
+		const that = this;
 
-		var parser = this.engine.rdfLoader.parsers[mediaType];
+		const parser = this.engine.rdfLoader.parsers[mediaType];
 
 		if (!parser) return callback(new Error("Cannot find parser for the provided media type:"+mediaType));
 
-		var cb = function(err, quads) {
+		const cb = function(err, quads) {
 			if(err) {
 				callback(err);
 			} else {
@@ -762,7 +761,7 @@ Store.prototype.load = function(){
 			}
 		};
 
-		var graphTerm = {'token':'uri', 'value':graph.valueOf()};
+		const graphTerm = {'token':'uri', 'value':graph.valueOf()};
 
 		if(data && typeof(data)==='string' && data.indexOf('file://')=== 0) {
 		    this.engine.rdfLoader.loadFromFile(parser, graphTerm, data, options, cb);
@@ -809,7 +808,7 @@ Store.prototype.registerParser = function(mediaType, parser) {
  */
 Store.prototype.registeredGraphs = function(callback) {
     this.engine.lexicon.registeredGraphs(true, function(graphs){
-	var graphNodes = _.map(graphs, function(graph){
+	const graphNodes = _.map(graphs, function(graph){
 	    return new RDFModel.NamedNode(graph);
 	});
 
@@ -884,8 +883,8 @@ Store.VERSION = "0.9.18-alpha.25";
  * @param {Object[]} [args] Arguments to be passed to the store that will be created
  * @param {Function} callback Callback function that will be invoked with an error flag and the connection/store object.
  */
-var connect = function() {
-    var callback;
+const connect = function() {
+    let callback;
     if(arguments.length == 1) {
 		callback = arguments[0];
     } else if(arguments.length == 2) {
@@ -915,7 +914,7 @@ var connect = function() {
  * @param {Object[]} [args] Arguments to be passed to the store that will be created
  * @param {Function} [callback] Callback function that will be invoked with an error flag and the connection/store object.
  */
-var create = function(){
+const create = function(){
     if(arguments.length == 1) {
 	return new Store(arguments[0]);
     } else if(arguments.length == 2) {
@@ -935,7 +934,7 @@ Store.yieldFrequency = function(val) {
  *
  * @param {Object} [params] configuration parameters, see the Store constructor
  */
-var promises = {
+const promises = {
     create: function(params) {
         return _.toPromise(function(cb) { new Store(params || {}, cb); });
     }
