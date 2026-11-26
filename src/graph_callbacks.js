@@ -430,16 +430,18 @@ Callbacks.CallbacksBackend.prototype.observeQuery = function(query, callback, en
 	});
 
     }, function(){
+	// ready only after the initial result, so that changes made from it notify after that result
 	that.engine.execute(query, function(err, results){
-	    if(!err){
-		callback(results);
-	    } else {
-		console.log("ERROR in query callback "+results);
+	    try {
+		if(!err){
+		    callback(results);
+		}
+	    } finally {
+		// also when the listener throws; its exception still propagates
+		if(endCallback != null)
+		    endCallback(err || null);
 	    }
 	});
-
-	if(endCallback != null)
-	    endCallback();
     });
 };
 

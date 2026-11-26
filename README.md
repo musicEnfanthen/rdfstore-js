@@ -571,6 +571,7 @@ store.stopObservingNode(cb);
 
 In the same way, there are *startObservingQuery* and *stopObservingQuery* functions that makes possible to set up callbacks for whole SPARQL queries.
 The store will try to be smart and not perform unnecessary evaluations of these query after quad insertion/deletions. Nevertheless too broad queries must be used carefully with the events API.
+The optional third argument of *startObservingQuery* is called once the initial query has run, after the listener has received its result. It gets `null`, or the error if the query failed (the listener is then not called). *Since v0.9.18-alpha.25; before, it could be called before the initial result and got no error.*
 
 ### Custom Filter Functions
 

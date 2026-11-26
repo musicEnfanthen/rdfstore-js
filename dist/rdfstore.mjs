@@ -31418,14 +31418,15 @@ var require_graph_callbacks = __commonJS({
         });
       }, function() {
         that.engine.execute(query, function(err, results) {
-          if (!err) {
-            callback(results);
-          } else {
-            console.log("ERROR in query callback " + results);
+          try {
+            if (!err) {
+              callback(results);
+            }
+          } finally {
+            if (endCallback != null)
+              endCallback(err || null);
           }
         });
-        if (endCallback != null)
-          endCallback();
       });
     };
     Callbacks.CallbacksBackend.prototype.stopObservingQuery = function(query) {
