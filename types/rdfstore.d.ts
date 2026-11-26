@@ -204,7 +204,7 @@ export declare class Store {
     startObservingNode(nodeUri: string, listener: (node: Graph) => void): void;
     startObservingNode(nodeUri: string, graphUri: string, listener: (node: Graph) => void): void;
     stopObservingNode(listener: (node: Graph) => void): void;
-    startObservingQuery(query: string, listener: (bindings: SelectResult) => void, ready?: () => void): void;
+    startObservingQuery(query: string, listener: (bindings: SelectResult) => void, ready?: (err: Error | null) => void): void;
     stopObservingQuery(query: string): void;
     subscribe(subject: string | null, predicate: string | null, object: string | null, graph: string | null,
               listener: (event: GraphEvent, triples: Triple[]) => void, ready?: (...args: any[]) => void): void;

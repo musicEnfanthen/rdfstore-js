@@ -176,6 +176,61 @@ describe("Events API deleted events", function() {
 
 describe("Events API observed queries", function() {
 
+    it("calls the ready callback after the initial result", function(done) {
+        withStore(function(store) {
+            // more solutions than the iteration helpers handle without yielding
+            var triples = [];
+            for(var i = 0; i < 300; i++) {
+                triples.push("<http://a> <http://p> <http://o" + i + "> .");
+            }
+            store.execute("INSERT DATA { " + triples.join(" ") + " }", function(err) {
+                expect(err).toBe(null);
+                var calls = [];
+                store.startObservingQuery("SELECT ?o { <http://a> <http://p> ?o }", function(results) {
+                    calls.push(results.length);
+                }, function() {
+                    expect(calls).toEqual([300]);
+                    done();
+                });
+            });
+        });
+    });
+
+    it("calls the ready callback when the listener throws on the initial result", async function() {
+        var store = await new Promise(withStore);
+        await jasmine.spyOnGlobalErrorsAsync(async function(globalErrorSpy) {
+            var sentinel = new Error("thrown by the listener");
+            var ready = 0;
+            try {
+                store.startObservingQuery("SELECT ?o { <http://a> <http://p> ?o }", function() {
+                    throw sentinel;
+                }, function() { ready++; });
+            } catch(e) {
+                expect(e).toBe(sentinel);
+            }
+            await new Promise(function(resolve) { setTimeout(resolve, 50); });
+            expect(ready).toBe(1);
+        });
+    });
+
+    it("passes the error of the initial query to the ready callback", function(done) {
+        withStore(function(store) {
+            insertAB(store, function() {
+                var calls = 0;
+                store.startObservingQuery("SELECT ?o { ?s ?p ?o FILTER(COALESCE(?o)) }", function() { calls++; }, function(err) {
+                    expect(err instanceof Error).toBe(true);
+                    expect(err.name).toBe("NonSupportedSparqlFeatureError");
+                    expect(calls).toBe(0);
+                    store.startObservingQuery("SELECT ?o { ?s ?p ?o }", function() { calls++; }, function(err) {
+                        expect(err).toBe(null);
+                        expect(calls).toBe(1);
+                        done();
+                    });
+                });
+            });
+        });
+    });
+
     it("notifies a query with PREFIX and BASE declarations", function(done) {
         withStore(function(store) {
             var query = "BASE <http://a/dir/> PREFIX ex: <http://example/> SELECT ?o { <s> ex:p ?o }";

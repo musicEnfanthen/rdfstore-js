@@ -136,10 +136,10 @@ This is a list of the different kind of queries currently implemented:
 Install the fork directly from GitHub, pinned to a release tag:
 
 ```bash
-$ yarn add rdfstore@webern-unibas-ch/rdfstore-js#v0.9.18-alpha.24
+$ yarn add rdfstore@webern-unibas-ch/rdfstore-js#v0.9.18-alpha.25
 ```
 
-With npm: `npm install github:webern-unibas-ch/rdfstore-js#v0.9.18-alpha.24`. All available versions are listed under [Tags](https://github.com/webern-unibas-ch/rdfstore-js/tags).
+With npm: `npm install github:webern-unibas-ch/rdfstore-js#v0.9.18-alpha.25`. All available versions are listed under [Tags](https://github.com/webern-unibas-ch/rdfstore-js/tags).
 
 ## Building
 
@@ -571,6 +571,7 @@ store.stopObservingNode(cb);
 
 In the same way, there are *startObservingQuery* and *stopObservingQuery* functions that makes possible to set up callbacks for whole SPARQL queries.
 The store will try to be smart and not perform unnecessary evaluations of these query after quad insertion/deletions. Nevertheless too broad queries must be used carefully with the events API.
+The optional third argument of *startObservingQuery* is called once the initial query has run, after the listener has received its result. It gets `null`, or the error if the query failed (the listener is then not called). *Since v0.9.18-alpha.25; before, it could be called before the initial result and got no error.*
 
 ### Custom Filter Functions
 

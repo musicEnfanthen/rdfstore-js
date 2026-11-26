@@ -46,6 +46,9 @@ function useCallbacks(): void {
         store.subscribe('http://a', null, null, null, function(event, triples) {
             console.log(event === 'added', triples.length);
         });
+        store.startObservingQuery('SELECT * { ?s ?p ?o }', function(rows) { console.log(rows.length); }, function(err) {
+            if (err) console.log(err.message);
+        });
         store.close();
     });
     rdfstore.create({ treeOrder: 4, unionDefaultGraph: true }, function(err, store) { if (!err) store.close(); });

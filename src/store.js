@@ -388,7 +388,7 @@ Store.prototype.stopObservingNode = function(callback) {
  * @arguments
  * @param {String} query SELECT or CONSTRUCT SPARQL query
  * @param {Function} eventListener the function that will receive the notifications
- * @param {Function} [callback] optional function that will be invoked when the stored had set up the event listener function.
+ * @param {Function} [callback] optional function that will be invoked once the event listener is set up and the initial query has run (after the listener received its result), with the query's error or null.
  */
 Store.prototype.startObservingQuery = function() {
     var query = arguments[0];
@@ -859,7 +859,7 @@ Store.prototype.close = function(cb) {
 /**
  * Version of the store
  */
-Store.VERSION = "0.9.18-alpha.24";
+Store.VERSION = "0.9.18-alpha.25";
 
 /**
  * Create a new RDFStore instance that will be
