@@ -48,7 +48,8 @@ QueryPlanDPSize.variablesInBGP = function(bgp) {
     for(var comp in components) {
         if(components[comp] && components[comp].token === "var") {
             variables.push(components[comp].value);
-        } else if(components[comp] && components[comp].token === "blank") {
+        } else if(components[comp] && components[comp].token === "blank" && components[comp].oid == null) {
+            // a blank node with an OID is a bound blank node of the store (EXISTS), so a constant
             variables.push("blank:"+components[comp].value);
         }
     }
@@ -218,11 +219,7 @@ QueryPlanDPSize.createJoinTree = function(leftPlan, rightPlan) {
     // the left plan and the right plan.
     for(var i=0; i<rightPlan.vars.length; i++) {
         if(varsLeft.indexOf("/"+rightPlan.vars[i]+"/") != -1) {
-            if(rightPlan.vars[i].indexOf("_:") == 0) {
-                join.push("blank:"+rightPlan.vars[i]);
-            } else {
-                join.push(rightPlan.vars[i]);
-            }
+            join.push(rightPlan.vars[i]);
         } else {
             accumVars.push(rightPlan.vars[i]);
         }
@@ -319,8 +316,9 @@ QueryPlanDPSize.executeAndBGPsDPSize = function(allBgps, dataset, queryEngine, e
                     if(comp != '_cost') {
                         if(bgps[i][comp].token === 'var') {
                             vars.push(bgps[i][comp].value);
-                        } else if(bgps[i][comp].token === 'blank') {
-                            vars.push(bgps[i][comp].value);
+                        } else if(bgps[i][comp].token === 'blank' && bgps[i][comp].oid == null) {
+                            // named like the bindings (buildBindingsFromRange), so blank nodes join
+                            vars.push("blank:"+bgps[i][comp].value);
                         }
                     }
                 }
@@ -406,15 +404,15 @@ QueryPlanDPSize.executeAndBGPsDPSize = function(allBgps, dataset, queryEngine, e
                         k();
                     }
                 } else {
-                    k("Error executing bushy tree");
+                    k(new Error("Error executing bushy tree"));
                 }
 
             });
         },function(err){
             if(err) {
-                callback(null, err);
+                callback(err);
             } else {
-                callback(acum);
+                callback(null, acum);
             }
         });
     });
@@ -447,8 +445,8 @@ QueryPlanDPSize.executeBGPDatasets = function(bgp, dataset, queryEngine, queryEn
                     k();
                 }
             }, function(){
-                var acumBindings = QueryPlanDPSize.unionManyBindings(acum);
-                callback(acumBindings);
+                // the default graph is the RDF merge of these graphs: a triple in several of them counts once
+                callback(acum.length > 1 ? QueryPlanDPSize.distinctUnionBindings(acum) : QueryPlanDPSize.unionManyBindings(acum));
             });
     } else if(bgp.graph.token === 'var') {
         // union through all named datasets
@@ -489,16 +487,28 @@ QueryPlanDPSize.executeBGPDatasets = function(bgp, dataset, queryEngine, queryEn
                 }
             });
     } else {
-        // graph already has an active value, just match.
-        // Filtering the results will still be necessary
-        queryEngine.rangeQuery(bgp, queryEnv, function(results){
-            if(results!=null) {
-                results = QueryPlanDPSize.buildBindingsFromRange(results, bgp);
-                callback(results);
-            } else {
-                callback(null);
-            }
-        });
+        // a graph IRI: match it, if the query names named graphs only one of them
+        var match = function() {
+            queryEngine.rangeQuery(bgp, queryEnv, function(results){
+                if(results!=null) {
+                    results = QueryPlanDPSize.buildBindingsFromRange(results, bgp);
+                    callback(results);
+                } else {
+                    callback(null);
+                }
+            });
+        };
+        if(dataset.named == null || dataset.named.length === 0 || dataset.union === true) {
+            match();
+        } else {
+            queryEngine.isDatasetGraph(bgp.graph, dataset, queryEnv, function(inDataset){
+                if(inDataset) {
+                    match();
+                } else {
+                    callback([]);
+                }
+            });
+        }
     }
 };
 
@@ -510,7 +520,7 @@ QueryPlanDPSize.buildBindingsFromRange = function(results, bgp) {
     for(comp in components) {
         if(components[comp] && components[comp].token === "var") {
             bindings[comp] = components[comp].value;
-        } else if(components[comp] && components[comp].token === "blank") {
+        } else if(components[comp] && components[comp].token === "blank" && components[comp].oid == null) {
             bindings[comp] = "blank:"+components[comp].value;
         }
     }
@@ -540,10 +550,19 @@ QueryPlanDPSize.buildBindingsFromRange = function(results, bgp) {
 };
 
 
-// @used
-QueryPlanDPSize.areCompatibleBindings = function(bindingsa, bindingsb) {
-    for(var variable in bindingsa) {
-        if(bindingsb[variable]!=null && (bindingsb[variable] != bindingsa[variable])) {
+// Two term objects (no OIDs) for the same RDF term
+var sameTerm = function(a, b) {
+    return typeof(a) === "object" && typeof(b) === "object" && a.token === b.token && a.value == b.value &&
+        (a.type || null) === (b.type || null) && (a.lang || null) === (b.lang || null);
+};
+
+// Two solutions are compatible if every variable bound in both has the same value: the same OID, or the
+// same RDF term for values that are no OIDs (e.g. BIND results). An unbound (null) variable matches anything.
+QueryPlanDPSize.areCompatibleBindings = function(bindingsA, bindingsB) {
+    for(var variable in bindingsA) {
+        var a = bindingsA[variable];
+        var b = bindingsB[variable];
+        if(a != null && b != null && a !== b && !sameTerm(a, b)) {
             return false;
         }
     }
@@ -551,12 +570,12 @@ QueryPlanDPSize.areCompatibleBindings = function(bindingsa, bindingsb) {
     return true;
 };
 
-//QueryPlanDPSize.areCompatibleBindingsStrict = function(bindingsa, bindingsb) {
+//QueryPlanDPSize.areCompatibleBindingsStrict = function(bindingsA, bindingsB) {
 //    var foundSome = false;
-//    for(var variable in bindingsa) {
-// 	if(bindingsb[variable]!=null && (bindingsb[variable] != bindingsa[variable])) {
+//    for(var variable in bindingsA) {
+// 	if(bindingsB[variable]!=null && (bindingsB[variable] != bindingsA[variable])) {
 // 	    return false;
-// 	} else if(bindingsb[variable] == bindingsa[variable]){
+// 	} else if(bindingsB[variable] == bindingsA[variable]){
 // 	    foundSome = true;
 // 	}
 //    }
@@ -566,26 +585,29 @@ QueryPlanDPSize.areCompatibleBindings = function(bindingsa, bindingsb) {
 
 
 
-QueryPlanDPSize.mergeBindings = function(bindingsa, bindingsb) {
+QueryPlanDPSize.mergeBindings = function(bindingsA, bindingsB) {
     var merged = {};
-    for(var variable in bindingsa) {
-        merged[variable] = bindingsa[variable];
+    for(var variable in bindingsA) {
+        merged[variable] = bindingsA[variable];
     }
 
-    for(var variable in bindingsb) {
-        merged[variable] = bindingsb[variable];
+    // an unbound value on the right doesn't replace a bound one on the left
+    for(var variable in bindingsB) {
+        if(bindingsB[variable] != null || !(variable in merged)) {
+            merged[variable] = bindingsB[variable];
+        }
     }
 
     return merged;
 };
 
-QueryPlanDPSize.joinBindings2 = function(bindingVars, bindingsa, bindingsb) {
+QueryPlanDPSize.joinBindings2 = function(bindingVars, bindingsA, bindingsB) {
     var acum = {};
     var bindings, variable, variableValue, values, tmp;
     var joined = [];
 
-    for(var i=0; i<bindingsa.length; i++) {
-        bindings = bindingsa[i];
+    for(var i=0; i<bindingsA.length; i++) {
+        bindings = bindingsA[i];
         tmp = acum;
         for(var j=0; j<bindingVars.length; j++) {
             variable = bindingVars[j];
@@ -602,8 +624,8 @@ QueryPlanDPSize.joinBindings2 = function(bindingVars, bindingsa, bindingsb) {
         }
     }
 
-    for(var i=0; i<bindingsb.length; i++) {
-        bindings = bindingsb[i];
+    for(var i=0; i<bindingsB.length; i++) {
+        bindings = bindingsB[i];
         tmp = acum;
         for(var j=0; j<bindingVars.length; j++) {
             variable = bindingVars[j];
@@ -624,50 +646,131 @@ QueryPlanDPSize.joinBindings2 = function(bindingVars, bindingsa, bindingsb) {
     return joined;
 };
 
-QueryPlanDPSize.joinBindings = function(bindingsa, bindingsb) {
-    var result = [];
+// Key of a solution over the given variables, or null unless all of them are bound to OIDs.
+var oidKey = function(vars, bindings) {
+    var key = "";
+    for(var i=0; i<vars.length; i++) {
+        var value = bindings[vars[i]];
+        if(typeof(value) !== "number") {
+            return null;
+        }
+        key += value + "_";
+    }
+    return key;
+};
 
-    for(var i=0; i< bindingsa.length; i++) {
-        var bindinga = bindingsa[i];
-        for(var j=0; j<bindingsb.length; j++) {
-            var bindingb = bindingsb[j];
-            if(QueryPlanDPSize.areCompatibleBindings(bindinga, bindingb)){
-                result.push(QueryPlanDPSize.mergeBindings(bindinga, bindingb));
+// Same rows in the same order as a nested loop over areCompatibleBindings, but each left
+// solution is only compared with the right solutions that can match it: those with the same
+// OIDs on the shared variables, plus those with a shared variable unbound or bound to a
+// non-OID value (e.g. a BIND result). A left solution without an OID key is compared with all.
+// An optional leftSolutions Map receives each merged solution -> the left solution it came from.
+QueryPlanDPSize.hashJoinBindings = function(bindingsA, bindingsB, leftOuter, leftSolutions) {
+    var varsA = {};
+    var varsB = {};
+    var sharedVars = [];
+    var i, p, key;
+    for(i=0; i<bindingsA.length; i++) {
+        for(p in bindingsA[i]) {
+            varsA[p] = true;
+        }
+    }
+    for(i=0; i<bindingsB.length; i++) {
+        for(p in bindingsB[i]) {
+            varsB[p] = true;
+        }
+    }
+    for(p in varsB) {
+        if(varsA[p] === true) {
+            sharedVars.push(p);
+        }
+    }
+
+    var buckets = {};
+    var wildcards = [];
+    for(i=0; i<bindingsB.length; i++) {
+        key = oidKey(sharedVars, bindingsB[i]);
+        if(key === null) {
+            wildcards.push(i);
+        } else {
+            (buckets[key] = buckets[key] || []).push(i);
+        }
+    }
+
+    var result = [];
+    var bindingA, matched;
+    var tryJoin = function(j) {
+        if(QueryPlanDPSize.areCompatibleBindings(bindingA, bindingsB[j])) {
+            matched = true;
+            var merged = QueryPlanDPSize.mergeBindings(bindingA, bindingsB[j]);
+            if(leftSolutions != null) {
+                leftSolutions.set(merged, bindingA);
             }
+            result.push(merged);
+        }
+    };
+    for(i=0; i<bindingsA.length; i++) {
+        bindingA = bindingsA[i];
+        matched = false;
+        key = oidKey(sharedVars, bindingA);
+        if(key === null) {
+            for(var j=0; j<bindingsB.length; j++) {
+                tryJoin(j);
+            }
+        } else {
+            // both index lists are ascending: merge them to keep the nested loop's order
+            var bucket = buckets[key] || [];
+            var b = 0, w = 0;
+            while(b < bucket.length || w < wildcards.length) {
+                if(w === wildcards.length || (b < bucket.length && bucket[b] < wildcards[w])) {
+                    tryJoin(bucket[b++]);
+                } else {
+                    tryJoin(wildcards[w++]);
+                }
+            }
+        }
+        if(leftOuter && matched === false) {
+            // the right side's variables must be present (as null) for further
+            // processing, e.g. filtering by not present value (DAWG test bev-6)
+            QueryPlanDPSize.augmentMissingBindings(bindingA, varsB);
+            result.push(bindingA);
         }
     }
     return result;
 };
 
-QueryPlanDPSize.augmentMissingBindings = function(bindinga, bindingb) {
-    for(var pb in bindingb) {
-        if(bindinga[pb] == null) {
-            bindinga[pb] = null;
+QueryPlanDPSize.joinBindings = function(bindingsA, bindingsB) {
+    return QueryPlanDPSize.hashJoinBindings(bindingsA, bindingsB, false);
+};
+
+QueryPlanDPSize.augmentMissingBindings = function(bindingA, bindingB) {
+    for(var pb in bindingB) {
+        if(bindingA[pb] == null) {
+            bindingA[pb] = null;
         }
     }
-    return bindinga;
+    return bindingA;
 };
 
 /*
- QueryPlanDPSize.diff = function(bindingsa, biundingsb) {
+ QueryPlanDPSize.diff = function(bindingsA, biundingsb) {
  var result = [];
 
- for(var i=0; i< bindingsa.length; i++) {
- var bindinga = bindingsa[i];
+ for(var i=0; i< bindingsA.length; i++) {
+ var bindingA = bindingsA[i];
  var matched = false;
- for(var j=0; j<bindingsb.length; j++) {
- var bindingb = bindingsb[j];
- if(QueryPlanDPSize.areCompatibleBindings(bindinga, bindingb)){
+ for(var j=0; j<bindingsB.length; j++) {
+ var bindingB = bindingsB[j];
+ if(QueryPlanDPSize.areCompatibleBindings(bindingA, bindingB)){
  matched = true;
- result.push(QueryPlanDPSize.mergeBindings(bindinga, bindingb));
+ result.push(QueryPlanDPSize.mergeBindings(bindingA, bindingB));
  }
  }
  if(matched === false) {
  // missing bindings must be present for further processing
  // e.g. filtering by not present value (see DAWG tests
  // bev-6)
- QueryPlanDPSize.augmentMissingBindings(bindinga, bindingb);
- result.push(bindinga);
+ QueryPlanDPSize.augmentMissingBindings(bindingA, bindingB);
+ result.push(bindingA);
  }
  }
 
@@ -675,51 +778,26 @@ QueryPlanDPSize.augmentMissingBindings = function(bindinga, bindingb) {
  };
  */
 
-QueryPlanDPSize.leftOuterJoinBindings = function(bindingsa, bindingsb) {
-    var result = [];
-    // strict was being passes ad an argument
-    //var compatibleFunction = QueryPlanDPSize.areCompatibleBindings;
-    //if(strict === true)
-    // 	compatibleFunction = QueryPlanDPSize.areCompatibleBindingsStrict;
-
-    for(var i=0; i< bindingsa.length; i++) {
-        var bindinga = bindingsa[i];
-        var matched = false;
-        for(var j=0; j<bindingsb.length; j++) {
-            var bindingb = bindingsb[j];
-            if(QueryPlanDPSize.areCompatibleBindings(bindinga, bindingb)){
-                matched = true;
-                result.push(QueryPlanDPSize.mergeBindings(bindinga, bindingb));
-            }
-        }
-        if(matched === false) {
-            // missing bindings must be present for further processing
-            // e.g. filtering by not present value (see DAWG tests
-            // bev-6)
-            // augmentMissingBindings set their value to null.
-            QueryPlanDPSize.augmentMissingBindings(bindinga, bindingb);
-            result.push(bindinga);
-        }
-    }
-    return result;
+QueryPlanDPSize.leftOuterJoinBindings = function(bindingsA, bindingsB, leftSolutions) {
+    return QueryPlanDPSize.hashJoinBindings(bindingsA, bindingsB, true, leftSolutions);
 };
 
-QueryPlanDPSize.crossProductBindings = function(bindingsa, bindingsb) {
+QueryPlanDPSize.crossProductBindings = function(bindingsA, bindingsB) {
     var result = [];
 
-    for(var i=0; i< bindingsa.length; i++) {
-        var bindinga = bindingsa[i];
-        for(var j=0; j<bindingsb.length; j++) {
-            var bindingb = bindingsb[j];
-            result.push(QueryPlanDPSize.mergeBindings(bindinga, bindingb));
+    for(var i=0; i< bindingsA.length; i++) {
+        var bindingA = bindingsA[i];
+        for(var j=0; j<bindingsB.length; j++) {
+            var bindingB = bindingsB[j];
+            result.push(QueryPlanDPSize.mergeBindings(bindingA, bindingB));
         }
     }
 
     return result;
 };
 
-QueryPlanDPSize.unionBindings = function(bindingsa, bindingsb) {
-    return bindingsa.concat(bindingsb);
+QueryPlanDPSize.unionBindings = function(bindingsA, bindingsB) {
+    return bindingsA.concat(bindingsB);
 };
 
 QueryPlanDPSize.unionManyBindings = function(bindingLists) {
@@ -729,6 +807,28 @@ QueryPlanDPSize.unionManyBindings = function(bindingLists) {
         acum = QueryPlanDPSize.unionBindings(acum, bindings);
     }
 
+    return acum;
+};
+
+/**
+ * The bindings of one triple pattern over several graphs without duplicates. The pattern's constants and the
+ * values of its variables (OIDs) fix the matched triple, so equal bindings mean the same triple.
+ */
+QueryPlanDPSize.distinctUnionBindings = function(bindingLists) {
+    var seen = new Set();
+    var acum = [];
+    for(var i=0; i<bindingLists.length; i++) {
+        for(var j=0; j<bindingLists[i].length; j++) {
+            var bindings = bindingLists[i][j];
+            var key = Object.keys(bindings).sort().map(function(name) {
+                return name + "=" + bindings[name];
+            }).join(" ");
+            if(!seen.has(key)) {
+                seen.add(key);
+                acum.push(bindings);
+            }
+        }
+    }
     return acum;
 };
 

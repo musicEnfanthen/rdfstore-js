@@ -78,23 +78,85 @@ var lexicalFormBaseUri = function(term, env) {
         if(resolvedPrefix != null) {
             uri = resolvedPrefix+suffix;
         } else {
-            uri = prefix+":"+suffix;
+            // an undeclared prefix stays as written
+            return prefix+":"+suffix;
         }
     } else {
         // URI is not prefixed
         uri = term.value;
     }
 
-    if(uri===null) {
-        return null;
-    } else {
-        // Should we apply the base URI namespace?
-        if(uri.indexOf(":") == -1) {
-            uri = (env.base||"") + uri; // applyBaseUri
+    return uri === null ? null : resolveIri(env.base, uri);
+};
+
+var SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*:/;
+
+// RFC 3986 appendix B
+var parseReference = function(iri) {
+    var m = /^(([^:/?#]+):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?$/.exec(iri);
+    return {scheme: m[2], authority: m[4], path: m[5], query: m[7], fragment: m[9]};
+};
+
+// RFC 3986 5.2.4
+var removeDotSegments = function(input) {
+    var output = "";
+    while(input.length > 0) {
+        if(input.indexOf("../") === 0) {
+            input = input.slice(3);
+        } else if(input.indexOf("./") === 0 || input.indexOf("/./") === 0) {
+            input = input.slice(2);
+        } else if(input === "/.") {
+            input = "/";
+        } else if(input.indexOf("/../") === 0 || input === "/..") {
+            input = "/" + input.slice(4);
+            output = output.slice(0, Math.max(output.lastIndexOf("/"), 0));
+        } else if(input === "." || input === "..") {
+            input = "";
+        } else {
+            var next = input.indexOf("/", 1);
+            if(next === -1) {
+                next = input.length;
+            }
+            output += input.slice(0, next);
+            input = input.slice(next);
         }
     }
+    return output;
+};
 
-    return uri;
+/**
+ * Resolves an IRI reference against a base IRI (RFC 3986 section 5.2). Works on the strings, without the
+ * normalization of WHATWG URL (case, percent-encoding), so IRIs stay as written. An IRI with a scheme is
+ * returned unchanged, like N3.js does when loading data, and so is any IRI without a base, or with a colon in
+ * its first segment but no valid scheme (a_b:c, no relative reference). A base that has no scheme itself is
+ * prepended.
+ */
+var resolveIri = function(base, iri) {
+    // a colon in the first segment: a scheme, or no relative reference
+    if(/^[^/?#]*:/.test(iri) || base == null || base === "") {
+        return iri;
+    } else if(!SCHEME.test(base)) {
+        return base + iri;
+    }
+    var b = parseReference(base);
+    var r = parseReference(iri);
+    var authority = b.authority;
+    var path, query = r.query;
+    if(r.authority !== undefined) {
+        authority = r.authority;
+        path = removeDotSegments(r.path);
+    } else if(r.path === "") {
+        path = b.path;
+        query = r.query !== undefined ? r.query : b.query;
+    } else if(r.path[0] === "/") {
+        path = removeDotSegments(r.path);
+    } else if(b.authority !== undefined && b.path === "") {
+        path = removeDotSegments("/" + r.path);
+    } else {
+        path = removeDotSegments(b.path.slice(0, b.path.lastIndexOf("/") + 1) + r.path);
+    }
+    return b.scheme + ":" + (authority !== undefined ? "//" + authority : "") + path +
+        (query !== undefined ? "?" + query : "") + (r.fragment !== undefined ? "#" + r.fragment : "");
 };
 
 
@@ -130,19 +192,6 @@ var iso8601 = function(date) {
     return date.toISOString();
 };
 
-var compareDateComponents = function(stra,strb) {
-    var dateA = parseISO8601(stra);
-    var dateB = parseISO8601(strb);
-
-    if(dateA == dateB) {
-        return 0;
-    } else if(dateA < dateB) {
-        return -1;
-    } else {
-        return 1;
-    }
-};
-
 var lexicalFormLiteral = function(term, env) {
     var value = term.value;
     var lang = term.lang;
@@ -170,7 +219,8 @@ var lexicalFormLiteral = function(term, env) {
         if(lang == null && type == null) {
             indexedValue = '"' + value + '"';
         } else if(type == null) {
-            indexedValue = '"' + value + '"' + "@" + lang;
+            // language tags are case-insensitive: one term per tag, in lower case like the query grammar
+            indexedValue = '"' + value + '"' + "@" + lang.toLowerCase();
         } else {
             // normalization
             if(type.indexOf('hexBinary') != -1) {
@@ -183,17 +233,11 @@ var lexicalFormLiteral = function(term, env) {
     return indexedValue;
 };
 
+// Replaces \uXXXX escapes with their characters, without eval (which a CSP without 'unsafe-eval' blocks).
 var normalizeUnicodeLiterals = function (string) {
-    var escapedUnicode = string.match(/\\u[0-9abcdefABCDEF]{4,4}/g) || [];
-    var dups = {};
-    for (var i = 0; i < escapedUnicode.length; i++) {
-        if (dups[escapedUnicode[i]] == null) {
-            dups[escapedUnicode[i]] = true;
-            string = string.replace(new RegExp("\\" + escapedUnicode[i], "g"), eval("'" + escapedUnicode[i] + "'"));
-        }
-    }
-
-    return string;
+    return string.replace(/\\u([0-9a-fA-F]{4})/g, function (escape, hex) {
+        return String.fromCharCode(parseInt(hex, 16));
+    });
 };
 
 // Persistence relies on the native IndexedDB of the runtime (browser window or worker).
@@ -223,43 +267,32 @@ var guid = function() {
         s4() + '-' + s4() + s4() + s4();
 };
 
-hashTerm = function(term) {
-    try {
-        if(term == null) {
-            return "";
-        } if(term.token==='uri') {
-            return "u"+term.value;
-        } else if(term.token === 'blank') {
-            return "b"+term.value;
-        } else if(term.token === 'literal') {
-            var l = "l"+term.value;
-            l = l + (term.type || "");
-            l = l + (term.lang || "");
-
-            return l;
-        }
-    } catch(e) {
-        if(typeof(term) === 'object') {
-            var key = "";
-            for(var p in term) {
-                key = key + p + term[p];
-            }
-
-            return key;
-        }
-        return term;
-    }
-};
-
+// Returns a new array without the elements matching p.
 var reject = function(xs,p) {
     var acc = [];
     for(var i=0; i<xs.length; i++) {
-        if(p(xs[i])) {
+        if(!p(xs[i])) {
             acc.push(xs[i]);
         }
     }
 
     return acc;
+};
+
+// Removes the elements matching p from xs itself and returns them.
+var remove = function(xs,p) {
+    var removed = [];
+    var kept = 0;
+    for(var i=0; i<xs.length; i++) {
+        if(p(xs[i])) {
+            removed.push(xs[i]);
+        } else {
+            xs[kept++] = xs[i];
+        }
+    }
+    xs.length = kept;
+
+    return removed;
 };
 
 var include = function(xs,p) {
@@ -454,6 +487,51 @@ var seq = function (/* functions... */) {
 };
 
 
+// Thrown values that are not Errors (some builtins throw strings) are wrapped, so callers always get an Error.
+var toError = function (e) {
+    return (e instanceof Error) ? e : new Error(String(e));
+};
+
+// Wraps a callback so that only its first invocation runs; `called` tells whether it already ran.
+var once = function (callback) {
+    var wrapped = function () {
+        if (wrapped.called) {
+            return;
+        }
+        wrapped.called = true;
+        return callback.apply(this, arguments);
+    };
+    wrapped.called = false;
+    return wrapped;
+};
+
+// Runs fn(callback) and settles a promise with its node-style result; a synchronous throw rejects too.
+// A throw after the callback already ran is rethrown, as at the callback entry points: the promise
+// is settled by then and would swallow it.
+var toPromise = function (fn) {
+    var settle;
+    var promise = new Promise(function (resolve, reject) {
+        settle = function (err, result) {
+            if (err) {
+                reject(toError(err));
+            } else {
+                resolve(result);
+            }
+        };
+    });
+    var done = once(settle);
+    try {
+        fn(done);
+    } catch (e) {
+        if (done.called) {
+            throw e;
+        }
+        done(e);
+    }
+    return promise;
+};
+
+
 var isWorker = function() {
     if(typeof(process) === "undefined" || process.browser === true) {
         if (typeof(window) === "undefined") {
@@ -470,10 +548,9 @@ var isWorker = function() {
 module.exports = {
     isWorker: isWorker,
     nextTick: nextTick,
-    hasTerm: hashTerm,
     lexicalFormBaseUri: lexicalFormBaseUri,
+    resolveIri: resolveIri,
     parseISO8601: parseISO8601,
-    compareDateComponents: compareDateComponents,
     iso8601: iso8601,
     normalizeUnicodeLiterals: normalizeUnicodeLiterals,
     lexicalFormLiteral: lexicalFormLiteral,
@@ -488,13 +565,16 @@ module.exports = {
     forEach: each,
     include: include,
     reject: reject,
-    remove: reject,
+    remove: remove,
     clone: clone,
     create: create,
     whilst: whilst,
     eachSeries: eachSeries,
     eachParallel: eachParallel,
     seq: seq,
+    once: once,
+    toError: toError,
+    toPromise: toPromise,
     yieldFrequency: function(value){
         yieldFrequency = value;
     }

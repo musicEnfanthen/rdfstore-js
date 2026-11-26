@@ -8,7 +8,7 @@ var InMemoryLexicon = require("./lexicon").Lexicon;
 var PersistentLexicon = require("./persistent_lexicon").PersistentLexicon;
 var RDFModel = require("./rdf_model");
 var _ = require("./utils");
-var NetworkTransport = require("./network_transport").NetworkTransport;
+var createStorePromises = require("./store_promises").createStorePromises;
 
 
 /**
@@ -26,6 +26,8 @@ var NetworkTransport = require("./network_transport").NetworkTransport;
  *  <li> name: when using persistence, the name for this store. In the MongoDB backed version, name of the DB used by the store. By default <code>'rdfstore_js'</code> is used</li>
  *  <li> overwrite: clears the persistent storage </li>
  *  <li> maxCacheSize: if using persistence, maximum size of the index cache </li>
+ *  <li> unionDefaultGraph: if true, a query that names no dataset reads the merge of all graphs as its default graph,
+ *       and GRAPH ?g ranges over all named graphs. Updates are not affected.</li>
  * </ul>
  */
 var Store = function(arg1, arg2) {
@@ -38,7 +40,8 @@ var Store = function(arg1, arg2) {
 		params   = {};
 		callback = arg1;
     } else if(arguments.length > 1) {
-		params   = arg1;
+		// a copy: the store adds treeOrder, backend and lexicon to its params
+		params   = Object.assign({}, arg1);
 		callback = arg2;
     } else {
 	throw("An optional argument map and a callback must be provided");
@@ -54,7 +57,9 @@ var Store = function(arg1, arg2) {
 		Lexicon = PersistentLexicon;
 		QuadBackend = PersistentBackend;
     }
-    this.functionMap = {};
+    // subscribe listener -> its adapters (one per subscribe call), keyed by function identity
+    // (an object would key by source text)
+    this.functionMap = new Map();
 
     var that = this;
     this.customFns = {};
@@ -91,6 +96,18 @@ var Store = function(arg1, arg2) {
  * associated to this graph instance.
  */
 Store.prototype.rdf = RDFModel.rdf;
+
+/**
+ * Promise versions of the asynchronous methods, see src/store_promises.js.
+ * Built on first access, so stores that only use callbacks don't pay for it.
+ */
+Object.defineProperty(Store.prototype, "promises", {
+    get: function() {
+	var promises = createStorePromises(this);
+	Object.defineProperty(this, "promises", {value: promises});
+	return promises;
+    }
+});
 Store.prototype.rdf.api = RDFModel;
 
 /**
@@ -342,7 +359,7 @@ Store.prototype.startObservingNode = function() {
 };
 
 /**
- * Removes a callback function associated to a node.<br/>
+ * Removes a callback function associated to a node, from every node it was registered for.<br/>
  * The event listener function object must be passed as an argument.<br/>
  *
  * @arguments
@@ -371,7 +388,7 @@ Store.prototype.stopObservingNode = function(callback) {
  * @arguments
  * @param {String} query SELECT or CONSTRUCT SPARQL query
  * @param {Function} eventListener the function that will receive the notifications
- * @param {Function} [callback] optional function that will be invoked when the stored had set up the event listener function.
+ * @param {Function} [callback] optional function that will be invoked once the event listener is set up and the initial query has run (after the listener received its result), with the query's error or null.
  */
 Store.prototype.startObservingQuery = function() {
     var query = arguments[0];
@@ -385,11 +402,10 @@ Store.prototype.startObservingQuery = function() {
 };
 
 /**
- * Removes a callback function associated to a SPARQL query.<br/>
- * The event listener function object must be passed as an argument.
+ * Stops observing a SPARQL query: removes every callback registered for it.<br/>
  *
  * @arguments
- * @param {Function} eventListener The event listener function to remove, the same passed as an argument to startObservingQuery
+ * @param {String} query The query string, the same passed as an argument to startObservingQuery
  */
 Store.prototype.stopObservingQuery = function(query) {
     this.engine.callbacksBackend.stopObservingQuery(query);
@@ -438,13 +454,13 @@ Store.prototype.subscribe = function(s, p, o, g, callback, readyCallback) {
 		callback(event,acum);
     };
 
-    this.functionMap[callback] = adapterCb;
+    this.functionMap.set(callback, (this.functionMap.get(callback) || []).concat(adapterCb));
 	this.engine.callbacksBackend.subscribe(s,p,o,g,adapterCb,
 		typeof readyCallback === 'function' ? readyCallback : function(){});
 };
 
 /**
- * Removes an event listener associated to a certain pattern.
+ * Removes an event listener from every pattern it was subscribed to.
  * The function passed as an argument to <code>subscribe</code> must be
  * passed as an argument.
  *
@@ -452,9 +468,11 @@ Store.prototype.subscribe = function(s, p, o, g, callback, readyCallback) {
  * @param {Function} callback The event listener to be removed
  */
 Store.prototype.unsubscribe = function(callback) {
-    var adapterCb = this.functionMap[callback];
-    this.engine.callbacksBackend.unsubscribe(adapterCb);
-    delete this.functionMap[callback];
+    var adapters = this.functionMap.get(callback) || [];
+    for(var i=0; i<adapters.length; i++) {
+        this.engine.callbacksBackend.unsubscribe(adapters[i]);
+    }
+    this.functionMap.delete(callback);
 };
 
 /**
@@ -715,6 +733,8 @@ Store.prototype.load = function(){
 			options = {};
 		} else {
 			graph = this.rdf.createNamedNode(options.graph || this.engine.lexicon.defaultGraphUri);
+			// a copy without graph: the caller's options stay reusable
+			options = Object.assign({}, options);
 			delete options['graph'];
 		}
 		callback= arguments[3] || function(){};
@@ -736,24 +756,18 @@ Store.prototype.load = function(){
 
 		var cb = function(err, quads) {
 			if(err) {
-			callback(err, quads);
+				callback(err);
 			} else {
-				that.engine.batchLoad(quads,function(success){
-					if(success != null){
-						callback(null,success);
-					} else {
-						callback(new Error("Error batch-loading triples."));
-					}
-				});
-	    	}
+				that.engine.batchLoad(quads, callback);
+			}
 		};
 
-		var args = [parser, {'token':'uri', 'value':graph.valueOf()}, data, options, cb];
+		var graphTerm = {'token':'uri', 'value':graph.valueOf()};
 
 		if(data && typeof(data)==='string' && data.indexOf('file://')=== 0) {
-		    this.engine.rdfLoader.loadFromFile.apply(null, args);
+		    this.engine.rdfLoader.loadFromFile(parser, graphTerm, data, options, cb);
 		} else {
-	    	this.engine.rdfLoader.tryToParse.apply(null, args);
+	    	this.engine.rdfLoader.tryToParse(parser, graphTerm, data, options, cb);
 		}
     }
 };
@@ -804,37 +818,28 @@ Store.prototype.registeredGraphs = function(callback) {
 };
 
 /**
- * Returns the current network transport being used by the
- * the store.
+ * Returns the network transport this store uses to fetch remote graphs (SPARQL <code>LOAD</code>).
  *
- * The default transport uses TCP sockets in the Node.js version
- * and relies on jQuery in the browser version. This can be overriden
- * using the <code>setNetworkTransport</code> function.
+ * The default transport uses Node's http/https modules. The browser bundles have no default
+ * transport that works: set one with the <code>setNetworkTransport</code> function.
  */
 Store.prototype.getNetworkTransport = function() {
-    return NetworkTransport;
+    return this.engine.rdfLoader.networkTransport;
 };
 
 /**
- * Sets the network transport used by the store.<br/>
+ * Sets the network transport this store uses to fetch remote graphs. It applies to this store only.<br/>
  * <br/>
- * Network transport consist of an object implementing the <code>load</code>
- * function, receiving the URI to load, a string with the value
- * of the HTTP 'Accept' header for the store registered parsers,
- * a callback function where the retrieved data and the success notification
- * must be returned.<br/>
- *<br/>
- * Different examples with implementations of different transports can be found
- * in the source code of the store:
- *<ul>
- * <li>src/js-communication/src/tcp_transport.js</li>
- * <li>src/js-communication/src/ajax_transport.js</li>
- *</ul>
+ * A network transport is an object implementing the <code>load(uri, accept, callback)</code>
+ * function. It receives the URI to load and the value of the HTTP 'Accept' header for the
+ * store's registered parsers, and calls <code>callback(err)</code> on failure or
+ * <code>callback(null, {headers: {'content-type': ...}, data: string})</code> on success.
+ *
  * @arguments
  * @param networkTransportImpl object implementing the transport *load* function.
  */
 Store.prototype.setNetworkTransport = function(networkTransportImpl) {
-    NetworkTransport = networkTransportImpl;
+    this.engine.rdfLoader.networkTransport = networkTransportImpl;
 };
 
 
@@ -854,7 +859,7 @@ Store.prototype.close = function(cb) {
 /**
  * Version of the store
  */
-Store.VERSION = "0.9.18-alpha.24";
+Store.VERSION = "0.9.18-alpha.25";
 
 /**
  * Create a new RDFStore instance that will be
@@ -924,6 +929,19 @@ Store.yieldFrequency = function(val) {
     _.yieldFrequency(val);
 };
 
+/**
+ * Promise version of <code>create</code>: resolves with the new store.
+ * The store's own promise methods are in <code>store.promises</code>.
+ *
+ * @param {Object} [params] configuration parameters, see the Store constructor
+ */
+var promises = {
+    create: function(params) {
+        return _.toPromise(function(cb) { new Store(params || {}, cb); });
+    }
+};
+
 module.exports.Store = Store;
 module.exports.create = create;
 module.exports.connect = connect;
+module.exports.promises = promises;

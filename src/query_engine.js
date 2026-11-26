@@ -7,20 +7,12 @@ var Utils = require("./utils");
 var QuadIndex = require("./quad_index");
 var QueryPlan = require("./query_plan").QueryPlan;
 var QueryFilters = require("./query_filters").QueryFilters;
+var PropertyPaths = require("./property_paths").PropertyPaths;
 var RDFModel = require("./rdf_model");
 var RDFLoader = require("./rdf_loader").RDFLoader;
 var Callbacks = require("./graph_callbacks").CallbacksBackend;
 var async = require('./utils');
 var _ = require('./utils');
-
-function BindExpressionError(message, bind, error) {
-    this.name = "BindExpressionError";
-    this.bind = bind;
-    this.error = error;
-    this.message = message;
-}
-BindExpressionError.prototype = new Error();
-BindExpressionError.constructor = BindExpressionError;
 
 var QueryEngine = function(params) {
     if(arguments.length != 0) {
@@ -34,6 +26,11 @@ var QueryEngine = function(params) {
         this.rdfLoader = new RDFLoader(params['communication']);
         this.callbacksBackend = new Callbacks(this);
         this.customFns = params.customFns || {};
+        // queries without a dataset read all graphs (store option unionDefaultGraph)
+        this.unionDefaultGraph = params.unionDefaultGraph === true;
+        // labels of the blank nodes BNODE() creates, unique for the engine; per solution, BNODE(str) -> label
+        this.bnodeCounter = 0;
+        this.bnodeLabels = new WeakMap();
     }
 };
 
@@ -42,31 +39,29 @@ QueryEngine.prototype.setCustomFunctions = function(customFns) {
 };
 
 // Utils
+// Adds the PREFIX and BASE declarations of a prologue to env, after those it has (the default prefixes for a new env)
 QueryEngine.prototype.registerNsInEnvironment = function(prologue, env) {
-    var prefixes = [];
-    if(prologue != null && prologue.prefixes != null) {
-        prefixes =prologue.prefixes;
-    }
-    var toSave = {};
-
-    // adding default prefixes;
-    for(var p in this.defaultPrefixes) {
-        toSave[p] = this.defaultPrefixes[p];
+    var namespaces = {};
+    var p;
+    var previous = env.namespaces || this.defaultPrefixes;
+    for(p in previous) {
+        namespaces[p] = previous[p];
     }
 
-    for(var i=0; i<prefixes.length; i++) {
-        var prefix = prefixes[i];
-        if(prefix.token === "prefix") {
-            toSave[prefix.prefix] = prefix.local;
+    // in order: a BASE resolves against the BASE before it, a PREFIX IRI against the BASE in effect there
+    var base = env.base || null;
+    var declarations = prologue != null && prologue.declarations != null ? prologue.declarations : [];
+    for(var i=0; i<declarations.length; i++) {
+        var declaration = declarations[i];
+        if(declaration.token === "base") {
+            base = Utils.resolveIri(base, declaration.value);
+        } else if(declaration.token === "prefix") {
+            namespaces[declaration.prefix] = Utils.resolveIri(base, declaration.local);
         }
     }
 
-    env.namespaces = toSave;
-    if(prologue!=null && prologue.base && typeof(prologue.base) === 'object') {
-        env.base = prologue.base.value;
-    } else {
-        env.base = null;
-    }
+    env.namespaces = namespaces;
+    env.base = base;
 };
 
 QueryEngine.prototype.applyModifier = function(modifier, projectedBindings) {
@@ -172,6 +167,10 @@ QueryEngine.prototype.applyOrderBy = function(order, modifiedBindings, dataset, 
     }
 };
 
+var untypedOrString = function(term) {
+    return term.token === 'literal' && (term.type == null || QueryFilters.isXsdType("string", term));
+};
+
 QueryEngine.prototype.compareFilteredBindings = function(a, b, order, env) {
     var found = false;
     var i = 0;
@@ -204,7 +203,7 @@ QueryEngine.prototype.compareFilteredBindings = function(a, b, order, env) {
 
         // uris
         if(a.value[i].token === 'uri' && b.value[i].token === 'uri') {
-            if(QueryFilters.runEqualityFunction(a.value[i], b.value[i], [], this, env).value == true) {
+            if(QueryFilters.runEqualityFunction(a.value[i], b.value[i], [], this, null, env).value == true) {
                 i++;
                 continue;
             } else {
@@ -216,22 +215,22 @@ QueryEngine.prototype.compareFilteredBindings = function(a, b, order, env) {
             filterResult = {value: true};
         } else
 
-        // simple literals
-        if(a.value[i].token === 'literal' && b.value[i].token === 'literal' && a.value[i].type == null && b.value[i].type == null) {
-            if(QueryFilters.runEqualityFunction(a.value[i], b.value[i], [], this, env).value == true) {
+        // literals without a datatype, and xsd:string (the same as a simple literal in RDF 1.1)
+        if(untypedOrString(a.value[i]) && untypedOrString(b.value[i])) {
+            if(QueryFilters.runEqualityFunction(a.value[i], b.value[i], [], this, null, env).value == true) {
                 i++;
                 continue;
             } else {
                 filterResult = QueryFilters.runTotalGtFunction(a.value[i], b.value[i], []);
             }
-        } else if(a.value[i].token === 'literal' && a.value[i].type == null) {
+        } else if(untypedOrString(a.value[i])) {
             filterResult = {value: false};
-        } else if(b.value[i].token === 'literal' && b.value[i].type == null) {
+        } else if(untypedOrString(b.value[i])) {
             filterResult = {value: true};
         } else
 
         // literals
-        if(QueryFilters.runEqualityFunction(a.value[i], b.value[i], [], this, env).value == true) {
+        if(QueryFilters.runEqualityFunction(a.value[i], b.value[i], [], this, null, env).value == true) {
             i++;
             continue;
         } else {
@@ -256,41 +255,6 @@ QueryEngine.prototype.compareFilteredBindings = function(a, b, order, env) {
     }
 };
 
-QueryEngine.prototype.removeDefaultGraphBindings = function(bindingsList, dataset) {
-    var onlyDefaultDatasets = [];
-    var namedDatasetsMap = {};
-    for(var i=0; i<dataset.named.length; i++) {
-        namedDatasetsMap[dataset.named[i].oid] = true;
-    }
-    for(i=0; i<dataset.implicit.length; i++) {
-        if(namedDatasetsMap[dataset.implicit[i].oid] == null) {
-            onlyDefaultDatasets.push(dataset.implicit[i].oid);
-        }
-    }
-    var acum = [];
-    for(i=0; i<bindingsList.length; i++) {
-        var bindings = bindingsList[i];
-        var foundDefaultGraph = false;
-        for(var p in bindings) {
-            for(var j=0; j<namedDatasetsMap.length; j++) {
-                if(bindings[p] === namedDatasetsMap[j]) {
-                    foundDefaultGraph = true;
-                    break;
-                }
-            }
-            if(foundDefaultGraph) {
-                break;
-            }
-        }
-        if(!foundDefaultGraph) {
-            acum.push(bindings);
-        }
-    }
-
-    return acum;
-};
-
-
 // true if an aggregate (COUNT, SUM, ...) occurs anywhere in the expression tree
 QueryEngine.containsAggregate = function(expression) {
     if(expression == null || typeof(expression) !== 'object') {
@@ -307,56 +271,188 @@ QueryEngine.containsAggregate = function(expression) {
     return false;
 };
 
-QueryEngine.prototype.aggregateBindings = function(projection, bindingsGroup, dataset, env, callback) {
-    var that = this;
-    this.copyDenormalizedBindings(bindingsGroup, env.outCache, function(denormBindings){
-        var aggregatedBindings = {};
-        for(var i=0; i<projection.length; i++) {
-            var aggregatedValue = QueryFilters.runAggregator(projection[i], denormBindings, that, dataset, env);
-            if(projection[i].alias) {
-                aggregatedBindings[projection[i].alias.value] = aggregatedValue;
-            } else {
-                aggregatedBindings[projection[i].value.value] = aggregatedValue;
+// Copy of the expression with each aggregate replaced by a variable '#aggregate<n>' ('#' can't occur in a
+// SPARQL variable), so that aggregates can be used inside expressions. The distinct aggregates are added
+// to `aggregates` as {name, key, expression}.
+QueryEngine.extractAggregates = function(expression, aggregates) {
+    if(expression == null || typeof(expression) !== 'object') {
+        return expression;
+    }
+    if(expression.expressionType === 'aggregate') {
+        var key = JSON.stringify(expression);
+        var name = null;
+        for(var i=0; i<aggregates.length && name == null; i++) {
+            if(aggregates[i].key === key) {
+                name = aggregates[i].name;
             }
         }
-        callback(aggregatedBindings);
-    });
+        if(name == null) {
+            name = '#aggregate' + aggregates.length;
+            aggregates.push({name: name, key: key, expression: expression});
+        }
+        return {token: 'expression', expressionType: 'atomic', primaryexpression: 'var', value: {token: 'var', value: name}};
+    }
+    var copy = Array.isArray(expression) ? [] : {};
+    for(var key in expression) {
+        copy[key] = QueryEngine.extractAggregates(expression[key], aggregates);
+    }
+    return copy;
+};
+
+// The variables used in an expression, without the patterns of EXISTS / NOT EXISTS.
+QueryEngine.expressionVariables = function(expression, vars) {
+    if(expression == null || typeof(expression) !== 'object') {
+        return vars;
+    }
+    if(expression.token === 'var') {
+        vars.push(expression.value);
+    } else if(expression.builtincall !== 'exists' && expression.builtincall !== 'notexists') {
+        for(var key in expression) {
+            QueryEngine.expressionVariables(expression[key], vars);
+        }
+    }
+    return vars;
+};
+
+// The variables a GROUP BY binds: grouped variables and the aliases of grouped expressions.
+QueryEngine.groupVariables = function(group) {
+    var vars = [];
+    for(var i=0; group !== 'singleGroup' && i<group.length; i++) {
+        if(group[i].token === 'var') {
+            vars.push(group[i].value);
+        } else if(group[i].token === 'aliased_expression') {
+            vars.push(group[i].alias.value);
+        }
+    }
+    return vars;
+};
+
+// How a grouped query evaluates its expressions. Aggregates inside SELECT expressions, HAVING and ORDER BY
+// become variables of each group's scope (see groupScope). Outside aggregates, these expressions may use
+// the group variables and, more leniently than SPARQL, the SELECT aliases; `ungroupedVariable` names the
+// first other variable.
+QueryEngine.planGroups = function(group, projection, having, order) {
+    var plan = {groupVars: QueryEngine.groupVariables(group), aggregates: [], projection: [], having: [], order: []};
+    var expressions = [];
+    for(var i=0; i<projection.length; i++) {
+        var expression = projection[i].expression;
+        // a single aggregate is computed over the group, any other expression evaluated on the group's scope
+        var evaluated = expression != null && expression.expressionType !== 'aggregate';
+        plan.projection.push({
+            name: projection[i].alias ? projection[i].alias.value : projection[i].value.value,
+            item: projection[i],
+            expression: evaluated ? QueryEngine.extractAggregates(expression, plan.aggregates) : null
+        });
+        if(evaluated) {
+            expressions.push(plan.projection[i].expression);
+        }
+    }
+    for(i=0; having != null && i<having.length; i++) {
+        plan.having.push(QueryEngine.extractAggregates(having[i], plan.aggregates));
+        expressions.push(plan.having[i]);
+    }
+    for(i=0; order != null && i<order.length; i++) {
+        plan.order.push({direction: order[i].direction, expression: QueryEngine.extractAggregates(order[i].expression, plan.aggregates)});
+        expressions.push(plan.order[i].expression);
+    }
+
+    var inScope = {};
+    var names = plan.groupVars.concat(plan.projection.map(function(projected) { return projected.name; }),
+        plan.aggregates.map(function(aggregate) { return aggregate.name; }));
+    for(i=0; i<names.length; i++) {
+        inScope[names[i]] = true;
+    }
+    var used = QueryEngine.expressionVariables(expressions, []);
+    for(i=0; i<used.length && plan.ungroupedVariable == null; i++) {
+        if(inScope[used[i]] !== true) {
+            plan.ungroupedVariable = used[i];
+        }
+    }
+    return plan;
+};
+
+// One group's solution as SELECT expressions, HAVING and ORDER BY see it: the group variables, the
+// aggregates of the plan and the projected values.
+QueryEngine.prototype.groupScope = function(plan, denormGroup, dataset, env) {
+    var scope = {};
+    for(var i=0; i<plan.groupVars.length; i++) {
+        scope[plan.groupVars[i]] = denormGroup.length > 0 ? denormGroup[0][plan.groupVars[i]] : null;
+    }
+    for(i=0; i<plan.aggregates.length; i++) {
+        var value = QueryFilters.runAggregator({token: 'variable', kind: 'aliased', expression: plan.aggregates[i].expression}, denormGroup, this, dataset, env);
+        if(!QueryFilters.isEbvError(value)) {
+            scope[plan.aggregates[i].name] = value;
+        }
+    }
+    for(i=0; i<plan.projection.length; i++) {
+        var projected = plan.projection[i];
+        value = projected.expression == null ?
+            QueryFilters.runAggregator(projected.item, denormGroup, this, dataset, env) :
+            QueryFilters.runFilter(projected.expression, scope, this, dataset, env);
+        // an error leaves the variable unbound
+        if(!QueryFilters.isEbvError(value)) {
+            scope[projected.name] = QueryFilters.resultTerm(value);
+        }
+    }
+    return scope;
 };
 
 
-QueryEngine.prototype.projectBindings = function(projection, results, dataset) {
-    if(projection[0].kind === '*') {
-        return results;
-    } else {
-        var projectedResults = [];
-
+// Adds the SELECT aliases to copies of the solutions (SPARQL 1.1 Extend, before ORDER BY). Expressions are
+// evaluated on the terms of the variables they use, not on OIDs; an error leaves the alias unbound.
+QueryEngine.prototype.extendBindings = function(projection, results, dataset, env, callback) {
+    var aliased = [];
+    var used = [];
+    for(var j=0; projection[0].kind !== '*' && j<projection.length; j++) {
+        if(projection[j].kind === 'aliased') {
+            aliased.push(projection[j]);
+            QueryEngine.expressionVariables(projection[j].expression, used);
+        }
+    }
+    if(aliased.length === 0) {
+        return callback(results);
+    }
+    var usedBindings = results.map(function(result) {
+        var usedResult = {};
+        for(var u=0; u<used.length; u++) {
+            usedResult[used[u]] = result[used[u]];
+        }
+        return usedResult;
+    });
+    var that = this;
+    this.copyDenormalizedBindings(usedBindings, env.outCache, function(denormResults) {
+        var expressionEnv = {blanks:{}, outCache:{}, namespaces: env.namespaces, base: env.base};
+        var extended = [];
         for(var i=0; i<results.length; i++) {
-            var currentResult = results[i];
-            var currentProjected = {};
-            var shouldAdd = true;
-
-            for(var j=0; j< projection.length; j++) {
-                if(projection[j].token == 'variable' && projection[j].kind != 'aliased') {
-                    currentProjected[projection[j].value.value] = currentResult[projection[j].value.value];
-                } else if(projection[j].token == 'variable' && projection[j].kind == 'aliased') {
-                    var ebv = QueryFilters.runFilter(projection[j].expression, currentResult, this, dataset, {blanks:{}, outCache:{}});
-                    if(QueryFilters.isEbvError(ebv)) {
-                        shouldAdd = false;
-                        break;
-                    } else {
-                        currentProjected[projection[j].alias.value] = ebv;
-                    }
-                }
+            var extendedResult = {};
+            for(var p in results[i]) {
+                extendedResult[p] = results[i][p];
             }
-
-            if(shouldAdd === true) {
-                projectedResults.push(currentProjected);
+            for(var j=0; j<aliased.length; j++) {
+                var ebv = QueryFilters.runFilter(aliased[j].expression, denormResults[i], that, dataset, expressionEnv);
+                extendedResult[aliased[j].alias.value] = QueryFilters.isEbvError(ebv) ? null : QueryFilters.resultTerm(ebv);
             }
-
+            extended.push(extendedResult);
         }
 
-        return projectedResults;
+        if(env.unsupportedFeature == null)
+            env.unsupportedFeature = expressionEnv.unsupportedFeature;
+        callback(extended);
+    });
+};
+
+QueryEngine.prototype.projectBindings = function(projection, results) {
+    if(projection[0].kind === '*') {
+        return results;
     }
+    return results.map(function(result) {
+        var projected = {};
+        for(var j=0; j<projection.length; j++) {
+            var name = projection[j].kind === 'aliased' ? projection[j].alias.value : projection[j].value.value;
+            projected[name] = result[name];
+        }
+        return projected;
+    });
 };
 
 QueryEngine.prototype.resolveNsInEnvironment = function(prefix, env) {
@@ -386,23 +482,20 @@ QueryEngine.prototype.normalizeTerm = function(term, env, shouldIndex, callback)
         }
     } else if(term.token === 'blank') {
         var label = term.value;
-        var oid = env.blanks[label];
-        if( oid != null) {
-            callback(oid);
+        if(term.oid != null) {
+            // a blank node of the store bound into an EXISTS pattern
+            callback(term.oid);
+        } else if(!shouldIndex) {
+            // in a query pattern a blank node matches like a variable (see QueryPlanDPSize.variablesInBGP, withoutInternalVariables),
+            // never a data blank node with the same label in env.blanks
+            callback("blank:" + label);
+        } else if(env.blanks[label] != null) {
+            callback(env.blanks[label]);
         } else {
-            if(shouldIndex) {
-                this.lexicon.registerBlank(function(oid){
-                    env.blanks[label] = oid;
-                    callback(oid);
-                });
-            } else {
-                // should never get here...
-                // is resolveBlank useful?
-                this.lexicon.resolveBlank(function(oid) {
-                    env.blanks[label] = oid;
-                    callback(oid);
-                });
-            }
+            this.lexicon.registerBlank(function(oid){
+                env.blanks[label] = oid;
+                callback(oid);
+            });
         }
     } else if(term.token === 'var') {
         callback(term.value);
@@ -427,6 +520,29 @@ QueryEngine.prototype.normalizeDatasets = function(datasets, outerEnv, callback)
         }
     }, function(){
         callback(true);
+    });
+};
+
+/**
+ * Calls back with whether a graph IRI is a graph of the dataset: one of its named graphs if the query names
+ * some (FROM NAMED, USING NAMED, the named graphs passed to execute), else any graph of the store. The store's
+ * graphs are cached on the dataset, which belongs to one query or update operation.
+ */
+QueryEngine.prototype.isDatasetGraph = function(graph, dataset, env, callback) {
+    var that = this;
+    this.normalizeTerm(graph, env, false, function(oid){
+        if(oid == null || oid === -1) {
+            callback(false);
+        } else if(dataset.named != null && dataset.named.length > 0 && dataset.union !== true) {
+            callback(dataset.named.some(function(named) { return named.oid === oid; }));
+        } else if(dataset.registeredGraphs != null) {
+            callback(dataset.registeredGraphs.indexOf(oid) !== -1);
+        } else {
+            that.lexicon.registeredGraphs(false, function(graphs){
+                dataset.registeredGraphs = graphs;
+                callback(graphs.indexOf(oid) !== -1);
+            });
+        }
     });
 };
 
@@ -597,8 +713,6 @@ QueryEngine.prototype.denormalizeBindings = function(bindings, env, callback) {
             } else {
                 that.lexicon.retrieve(oid, function(val){
                     bindings[variable] = val;
-                    if(val.token === 'blank')
-                        env.blanks[val.value] = oid;
                     k();
                 });
             }
@@ -611,35 +725,43 @@ QueryEngine.prototype.denormalizeBindings = function(bindings, env, callback) {
 // Queries execution
 
 QueryEngine.prototype.execute = function(queryString, callback, defaultDataset, namedDataset){
-    //try{
+    var that = this;
+    var done = Utils.once(callback);
+    var modificationStarted = false;
+    try {
         queryString = Utils.normalizeUnicodeLiterals(queryString);
         var syntaxTree = this.abstractQueryTree.parseQueryString(queryString);
         if(syntaxTree == null) {
-            callback(false,"Error parsing query string");
-        } else {
-            if(syntaxTree.token === 'query' && syntaxTree.kind == 'update')  {
-                this.callbacksBackend.startGraphModification();
-                var that = this;
-                this.executeUpdate(syntaxTree, function(err, result){
-                    if(that.lexicon.updateAfterWrite)
-                        that.lexicon.updateAfterWrite();
+            done(new Error("Error parsing query string"));
+        } else if(syntaxTree.token === 'query' && syntaxTree.kind == 'update')  {
+            this.callbacksBackend.startGraphModification();
+            modificationStarted = true;
+            this.executeUpdate(syntaxTree, function(err, result){
+                if(that.lexicon.updateAfterWrite)
+                    that.lexicon.updateAfterWrite();
 
-                    if(err) {
-                        that.callbacksBackend.cancelGraphModification();
-                        callback(err, result);
-                    } else {
-                        that.callbacksBackend.endGraphModification(function(){
-                            callback(err, result);
-                        });
-                    }
-                });
-            } else if(syntaxTree.token === 'query' && syntaxTree.kind == 'query') {
-                this.executeQuery(syntaxTree, callback, defaultDataset, namedDataset);
-            }
+                if(err) {
+                    that.callbacksBackend.cancelGraphModification();
+                    done(err, result);
+                } else {
+                    that.callbacksBackend.endGraphModification(function(){
+                        done(null, result);
+                    });
+                }
+            });
+        } else if(syntaxTree.token === 'query' && syntaxTree.kind == 'query') {
+            this.executeQuery(syntaxTree, done, defaultDataset, namedDataset);
+        } else {
+            done(new Error("Cannot execute query of kind " + syntaxTree.kind));
         }
-    //} catch(e) {
-    //    callback(e);
-    //}
+    } catch(e) {
+        // an exception from the caller's own callback is not a query error: let it propagate
+        if(done.called)
+            throw e;
+        if(modificationStarted)
+            this.callbacksBackend.cancelGraphModification();
+        done(Utils.toError(e));
+    }
 };
 
 // Retrieval queries
@@ -685,6 +807,9 @@ QueryEngine.prototype.executeQuery = function(syntaxTree, callback, defaultDatas
             }
         });
     } else if(aqt.kind === 'construct') {
+        if(aqt.group != null || aqt.having != null) {
+            return callback(new NonSupportedSparqlFeatureError("GROUP BY in CONSTRUCT", "GROUP BY and HAVING are not supported in CONSTRUCT queries"));
+        }
         aqt.projection = [{"token": "variable", "kind": "*"}];
         that = this;
         this.executeSelect(aqt, queryEnv, defaultDataset, namedDataset, function(err, result){
@@ -757,83 +882,119 @@ QueryEngine.prototype.executeSelect = function(unit, env, defaultDataset, namedD
         var order      = unit.order;
         var that = this;
 
-        // an aggregate is only evaluated as a whole projection expression, e.g. (COUNT(?s) AS ?c), not inside one
-        if(projection != null && projection !== '*') {
-            for(var p = 0; p < projection.length; p++) {
-                var expression = projection[p].expression;
-                if(expression != null && expression.expressionType !== 'aggregate' && QueryEngine.containsAggregate(expression)) {
-                    return callback(new NonSupportedSparqlFeatureError("aggregate in expression",
-                        "Aggregates inside expressions are not supported" + (projection[p].alias ? ": ?" + projection[p].alias.value : "")));
-                }
-            }
-        }
+        // an unsupported feature met while evaluating an expression (see QueryFilters.runFilter) fails the query
+        var reply = callback;
+        callback = function(err, result) {
+            if(err == null && env.unsupportedFeature != null)
+                reply(env.unsupportedFeature);
+            else
+                reply(err, result);
+        };
 
         if(defaultDataset != null || namedDataset != null) {
             dataset.implicit = defaultDataset || [];
             dataset.named   = namedDataset || [];
         }
 
-        if(dataset.implicit != null && dataset.implicit.length === 0 && dataset.named !=null && dataset.named.length === 0) {
-            // We add the default graph to the default merged graph
-            dataset.implicit.push(this.lexicon.defaultGraphUriTerm);
-        }
+        var completeDataset = function(next) {
+            if(dataset.implicit.length > 0 || dataset.named.length > 0) {
+                next();
+            } else if(that.unionDefaultGraph && unit.kind !== 'modify') {
+                // a query (not an update) without a dataset: the default graph is the merge of all graphs, and the
+                // named graphs are all graphs of the store. As without FROM NAMED, GRAPH <iri> stays unrestricted
+                // (store.graph() reads the default graph by its IRI).
+                that.lexicon.registeredGraphs(true, function(uris) {
+                    var graphs = uris.map(function(uri) {
+                        return {token: 'uri', prefix: null, suffix: null, value: uri};
+                    });
+                    dataset.implicit = [that.lexicon.defaultGraphUriTerm].concat(graphs);
+                    dataset.named = graphs;
+                    dataset.union = true;
+                    next();
+                });
+            } else {
+                dataset.implicit.push(that.lexicon.defaultGraphUriTerm);
+                next();
+            }
+        };
 
-
-        that.normalizeDatasets(dataset.implicit.concat(dataset.named), env, function(){
-            try {
-                that.executeSelectUnit(projection, dataset, unit.pattern, env, function (result) {
-                    if (result != null) {
-                        // detect single group: aggregates without GROUP BY (no group clause leaves `group` unset)
-                        if (unit.group == null || unit.group === "") {
-                            var foundUniqueGroup = false;
-                            for (var i = 0; i < unit.projection.length; i++) {
-                                if (unit.projection[i].expression != null && unit.projection[i].expression.expressionType === 'aggregate') {
-                                    foundUniqueGroup = true;
-                                    break;
-                                }
-                            }
-                            if (foundUniqueGroup === true) {
-                                unit.group = 'singleGroup';
+        completeDataset(function() { that.normalizeDatasets(dataset.implicit.concat(dataset.named), env, function(){
+            that.executeSelectUnit(projection, dataset, unit.pattern, env, function (err, result) {
+                if (err != null) {
+                    callback(err);
+                } else if (result != null) {
+                    // detect single group: aggregates (in SELECT or ORDER BY) or HAVING without GROUP BY
+                    // (no group clause leaves `group` unset)
+                    if (unit.group == null || unit.group === "") {
+                        var foundUniqueGroup = unit.having != null;
+                        for (var i = 0; i < unit.projection.length; i++) {
+                            if (QueryEngine.containsAggregate(unit.projection[i].expression)) {
+                                foundUniqueGroup = true;
                             }
                         }
-                        if (unit.group && unit.group != "") {
-                            if (that.checkGroupSemantics(unit.group, projection)) {
-                                that.groupSolution(result, unit.group, dataset, env, function(groupedBindings){
-                                    var aggregatedBindings = [];
-                                    async.eachSeries(groupedBindings, function(groupedBindingsGroup, k){
-                                        that.aggregateBindings(projection, groupedBindingsGroup, dataset, env, function(resultingBindings){
-                                            aggregatedBindings.push(resultingBindings);
-                                            k();
-                                        });
-                                    }, function(){
-                                        // DISTINCT, OFFSET and LIMIT; ORDER BY on aggregated values is not supported yet
+                        for (i = 0; order != null && i < order.length; i++) {
+                            if (QueryEngine.containsAggregate(order[i].expression)) {
+                                foundUniqueGroup = true;
+                            }
+                        }
+                        if (foundUniqueGroup === true) {
+                            unit.group = 'singleGroup';
+                        }
+                    }
+                    if (unit.group && unit.group != "") {
+                        if (that.checkGroupSemantics(unit.group, projection)) {
+                            var plan = QueryEngine.planGroups(unit.group, projection, unit.having, order);
+                            if (plan.ungroupedVariable != null) {
+                                return callback(new Error("Variable ?" + plan.ungroupedVariable + " is neither grouped nor aggregated"));
+                            }
+                            that.groupSolution(result, unit.group, dataset, env, function(groupedBindings){
+                                var scopes = [];
+                                async.eachSeries(groupedBindings, function(groupedBindingsGroup, k){
+                                    that.copyDenormalizedBindings(groupedBindingsGroup, env.outCache, function(denormGroup){
+                                        var scope = that.groupScope(plan, denormGroup, dataset, env);
+                                        for (var h = 0; h < plan.having.length; h++) {
+                                            if (QueryFilters.ebv(QueryFilters.runFilter(plan.having[h], scope, that, dataset, env)) !== true) {
+                                                return k();
+                                            }
+                                        }
+                                        scopes.push(scope);
+                                        k();
+                                    });
+                                }, function(){
+                                    that.applyOrderBy(plan.order, scopes, dataset, env, function(orderedScopes){
+                                        var aggregatedBindings = [];
+                                        for (var s = 0; s < orderedScopes.length; s++) {
+                                            var projected = {};
+                                            for (var p = 0; p < plan.projection.length; p++) {
+                                                projected[plan.projection[p].name] = orderedScopes[s][plan.projection[p].name];
+                                            }
+                                            aggregatedBindings.push(projected);
+                                        }
                                         var modifiedBindings = that.applyModifier(modifier, aggregatedBindings);
                                         var limitedBindings = that.applyLimitOffset(offset, limit, modifiedBindings);
                                         callback(null, {'bindings': limitedBindings, 'denorm': true});
                                     });
                                 });
-                            } else {
-                                callback(new Error("Incompatible Group and Projection variables"));
-                            }
+                            });
                         } else {
-                            that.applyOrderBy(order, result, dataset, env, function(orderedBindings){
-                                var projectedBindings = that.projectBindings(projection, orderedBindings, dataset);
+                            callback(new Error("Incompatible Group and Projection variables"));
+                        }
+                    } else {
+                        that.extendBindings(projection, result, dataset, env, function(extendedBindings){
+                            that.applyOrderBy(order, extendedBindings, dataset, env, function(orderedBindings){
+                                var projectedBindings = that.projectBindings(projection, orderedBindings);
                                 var modifiedBindings = that.applyModifier(modifier, projectedBindings);
                                 var limitedBindings = that.applyLimitOffset(offset, limit, modifiedBindings);
-                                var filteredBindings = that.removeDefaultGraphBindings(limitedBindings, dataset);
-
-                                callback(null, filteredBindings);
+                                callback(null, limitedBindings);
                             });
-                        }
-
-                    } else { // fail selectUnit
-                        callback(new Error("Error executing SELECT query."));
+                        });
                     }
-                });
-            } catch(e) {
-                callback(e);
-            }
-        });
+
+                } else { // fail selectUnit
+                    callback(new Error("Error executing SELECT query."));
+                }
+            });
+        }); });
     } else {
         callback(new Error("Cannot execute " + unit.kind + " query as a select query"));
     }
@@ -880,10 +1041,7 @@ QueryEngine.prototype.groupSolution = function(bindings, group, dataset, queryEn
                         that.copyDenormalizedBindings([currentBindings], queryEnv.outCache, function(denormBindings){
                             var filterResultEbv = QueryFilters.runFilter(currentOrderClause.expression, denormBindings[0], that, dataset, queryEnv);
                             if(!QueryFilters.isEbvError(filterResultEbv)) {
-                                if(filterResultEbv.value != null) {
-                                    filterResultEbv.value = ""+filterResultEbv.value;
-                                }
-                                currentBindings[currentOrderClause.alias.value]= filterResultEbv;
+                                currentBindings[currentOrderClause.alias.value] = QueryFilters.resultTerm(filterResultEbv);
                             } else {
                                 mustAddBindings = false;
                             }
@@ -980,403 +1138,290 @@ QueryEngine.prototype.executeSelectUnit = function(projection, dataset, pattern,
     } else if(pattern.kind === "FILTER") {
         // Some components may have the filter inside the unit
         var that = this;
-        this.executeSelectUnit(projection, dataset, pattern.value, env, function (results) {
-            if (results != null) {
+        this.executeSelectUnit(projection, dataset, pattern.value, env, function (err, results) {
+            if (err != null) {
+                callback(err);
+            } else if (results != null) {
                 QueryFilters.checkFilters(pattern, results, false, dataset, env, that, callback);
             } else {
-                callback([]);
+                callback(null, []);
+            }
+        });
+    } else if(pattern.kind === "EXTEND") {
+        var that = this;
+        this.executeSelectUnit(projection, dataset, pattern.value, env, function (err, results) {
+            if (err != null) {
+                callback(err);
+            } else if (results != null) {
+                that.runBinds(pattern.binds, results, dataset, env, callback);
+            } else {
+                callback(null, []);
+            }
+        });
+    } else if(pattern.kind === "GRAPH") {
+        // GRAPH ?g: the patterns inside matched an internal variable, which becomes ?g here, as the join with
+        // ?g -> graph of SPARQL 1.1 18.6 (a ?g bound inside to another value drops the solution)
+        this.executeSelectUnit(projection, dataset, pattern.value, env, function (err, results) {
+            if (err != null || results == null || pattern.internal == null) {
+                callback(err, results);
+            } else {
+                var name = pattern.graph.value;
+                var internal = pattern.internal.value;
+                var solutions = [];
+                for(var i=0; i<results.length; i++) {
+                    var solution = results[i];
+                    var graph = solution[internal];
+                    delete solution[internal];
+                    if(graph == null) {
+                        // not reached: every pattern inside GRAPH binds its graph
+                        solutions.push(solution);
+                    } else if(solution[name] == null) {
+                        solution[name] = graph;
+                        solutions.push(solution);
+                    } else if(solution[name] === graph) {
+                        solutions.push(solution);
+                    }
+                }
+                callback(null, solutions);
             }
         });
     } else if(pattern.kind === "EMPTY_PATTERN") {
-        // as an example of this case  check DAWG test case: algebra/filter-nested-2
-        callback([]);
-    //} else if(pattern.kind === "ZERO_OR_MORE_PATH" || pattern.kind === 'ONE_OR_MORE_PATH') {
-    //    return this.executeZeroOrMorePath(pattern, dataset, env);
+        // the empty group has one solution without variables (its filters are a FILTER node around it, see
+        // DAWG algebra/filter-nested-2). Under GRAPH, like for triple patterns (QueryPlanDPSize.executeBGPDatasets),
+        // a graph variable takes each named graph of the dataset, and an IRI must be a graph of the dataset.
+        if(pattern.graph == null) {
+            callback(null, [{}]);
+        } else if(pattern.graph.token === 'var') {
+            var solutions = [];
+            var seen = {};
+            for(var i=0; i<dataset.named.length; i++) {
+                if(seen[dataset.named[i].oid] == null) {
+                    seen[dataset.named[i].oid] = true;
+                    var solution = {};
+                    solution[pattern.graph.value] = dataset.named[i].oid;
+                    solutions.push(solution);
+                }
+            }
+            callback(null, solutions);
+        } else {
+            this.isDatasetGraph(pattern.graph, dataset, env, function(inDataset){
+                callback(null, inDataset ? [{}] : []);
+            });
+        }
+    } else if(pattern.kind === "PATH") {
+        PropertyPaths.execute(this, dataset, pattern, env, {}, callback);
+    } else if(pattern.kind === "BGP_SCOPE") {
+        this.executeBGPScope(projection, dataset, pattern.value, env, callback);
     } else {
-        throw(new NonSupportedSparqlFeatureError(pattern.kind));
+        callback(new NonSupportedSparqlFeatureError(pattern.kind));
     }
 };
 
-/*
-QueryEngine.prototype.executeZeroOrMorePath = function(pattern, dataset, env) {
-    //console.log("EXECUTING ZERO OR MORE PATH");
-    //console.log("X");
-    //console.log(pattern.x);
-    //console.log("Y");
-    //console.log(pattern.y);
-    var projection = [];
-    var starProjection = false;
-    if(pattern.x.token === 'var') {
-        projection.push({token: 'variable',
-            kind: 'var',
-            value: pattern.x.value});
-    }
-    if(pattern.y.token === 'var') {
-        projection.push({token: 'variable',
-            kind: 'var',
-            value: pattern.y.value});
-    }
-
-    if(projection.length === 0) {
-        projection.push({"token": "variable", "kind": "*"});
-        starProjection = true;
-    }
-
-    //console.log("COMPUTED PROJECTION");
-    //console.log(projection);
-
-
-    if(pattern.x.token === 'var' && pattern.y.token === 'var') {
-        var bindings = this.executeAndBGP(projection, dataset, pattern.path, env);
-        //console.log("BINDINGS "+bindings.length);
-        //console.log(bindings);
-        var acum = {};
-        var results = [];
-        var vx, intermediate, nextBinding, vxDenorm;
-        var origVXName = pattern.x.value;
-        var last = pattern.x;
-        var nextPath = pattern.path;
-        //console.log("VAR - VAR PATTERN");
-        //console.log(nextPath.value);
-        for(var i=0; i<bindings.length; i++) {
-            vx = bindings[i][origVXName];
-            if(acum[vx] == null) {
-                vxDenorm = this.lexicon.retrieve(vx);
-                pattern.x = vxDenorm;
-                //console.log("REPLACING");
-                //console.log(last);
-                //console.log("BY");
-                //console.log(vxDenorm);
-                //console.log(nextPath.value);
-                pattern.path = this.abstractQueryTree.replace(nextPath, last, vxDenorm, env);
-                nextPath = Utils.clone(pattern.path);
-                intermediate = this.executeZeroOrMorePath(pattern, dataset, env);
-                for(var j=0; j<intermediate.length; j++) {
-                    nextBinding = intermediate[j];
-                    nextBinding[origVXName] = vx;
-                    results.push(nextBinding)
-                }
-                last = vxDenorm;
+// Evaluates two sub-patterns one after the other; stops at the first error. With skipIfFirstEmpty
+// (joins), the second one is not evaluated when the first has no solutions.
+QueryEngine.prototype.executeSelectUnits = function(projection, dataset, setQuery1, setQuery2, env, skipIfFirstEmpty, callback) {
+    var that = this;
+    var set1, set2;
+    async.seq(
+        function(k){
+            that.executeSelectUnit(projection, dataset, setQuery1, env, function (err, result) {
+                set1 = result;
+                k(err);
+            });
+        },
+        function(k){
+            if(skipIfFirstEmpty && set1 != null && set1.length === 0) {
+                set2 = [];
+                return k();
             }
-        }
-
-        //console.log("RETURNING VAR - VAR");
-        return results;
-    } else if(pattern.x.token !== 'var' && pattern.y.token === 'var') {
-        var finished;
-        var acum = {};
-        var initial = true;
-        var pending = [];
-        var bindings,nextBinding;
-        var collected = [];
-        var origVx = pattern.x;
-        var last;
-
-        while(initial == true || pending.length !== 0) {
-            //console.log("-- Iteration");
-            //console.log(pattern.path.value[0]);
-            if(initial === true) {
-                bindings = this.executeAndBGP(projection, dataset, pattern.path, env);
-                //console.log("SAVING LAST");
-                //console.log(pattern.x);
-                last = pattern.x;
-                initial = false;
-            } else {
-                var nextOid = pending.pop();
-                //console.log("POPPING:"+nextOid);
-                var value = this.lexicon.retrieve(nextOid);
-                var path = pattern.path; //Utils.clone(pattern.path);
-                //console.log(path.value[0]);
-                //console.log("REPLACING");
-                //console.log(last);
-                //console.log("BY");
-                //console.log(value);
-                path = this.abstractQueryTree.replace(path, last, value, env);
-                //console.log(path.value[0]);
-                bindings = this.executeAndBGP(projection, dataset, path, env);
-                last = value;
-            }
-
-
-            //console.log("BINDINGS!");
-            //console.log(bindings);
-
-            for(var i=0; i<bindings.length; i++) {
-                //console.log(bindings[i][pattern.y.value])
-                var value = bindings[i][pattern.y.value];
-                //console.log("VALUE:"+value);
-                if(acum[value] !== true) {
-                    nextBinding = {};
-                    nextBinding[pattern.y.value] = value;
-                    collected.push(nextBinding);
-                    acum[value] = true;
-                    pending.push(value);
-                }
-            }
-        }
-        //console.log("RETURNING TERM - VAR");
-        //console.log(collected);
-        return collected;
-    } else {
-        throw "Kind of path not supported!";
-    }
+            that.executeSelectUnit(projection, dataset, setQuery2, env, function (err, result) {
+                set2 = result;
+                k(err);
+            });
+        })(function(err){
+        if(err != null)
+            callback(err);
+        else
+            callback(null, set1, set2);
+    });
 };
-*/
 
 QueryEngine.prototype.executeUNION = function(projection, dataset, patterns, env, callback) {
-    var setQuery1 = patterns[0];
-    var setQuery2 = patterns[1];
-    var error = null;
-    var set1,set2;
-
-
     if(patterns.length != 2) {
-        throw("SPARQL algebra UNION with more than two components");
+        return callback(new Error("SPARQL algebra UNION with more than two components"));
     }
 
     var that = this;
-    async.seq(
-        function(k){
-            try {
-                that.executeSelectUnit(projection, dataset, setQuery1, env, function (result) {
-                    set1 = result;
-                    k();
-                });
-            } catch(e) {
-                error = e;
-                k();
-            }
-        },
-    function(k){
-        if(error == null) {
-            try {
-                that.executeSelectUnit(projection, dataset, setQuery2, env, function (result) {
-                    set2 = result;
-                    k();
-                });
-            } catch(e) {
-                error = e;
-                k();
-            }
+    this.executeSelectUnits(projection, dataset, patterns[0], patterns[1], env, false, function(err, set1, set2){
+        if(err != null) {
+            callback(err);
         } else {
-            k();
+            QueryFilters.checkFilters(patterns, QueryPlan.unionBindings(set1, set2), false, dataset, env, that, callback);
         }
-    })(function(){
-        if(error != null) {
-            callback(error);
+    });
+};
+
+// The blank nodes of a basic graph pattern match like variables (see normalizeTerm), but are scoped to it:
+// they are dropped from its solutions, like the internal variables of property path sequences (fresh:).
+var withoutInternalVariables = function(results) {
+    return results.map(function(result) {
+        var solution = {};
+        for(var name in result) {
+            if(name.indexOf("blank:") !== 0 && name.indexOf("fresh:") !== 0) {
+                solution[name] = result[name];
+            }
+        }
+        return solution;
+    });
+};
+
+// the distinct values of a variable in the solutions, or undefined if it is not a variable or unbound in some
+var boundValues = function(term, solutions) {
+    var name = term.token === 'var' ? term.value : (term.token === 'blank' && term.oid == null ? "blank:" + term.value : null);
+    if(name == null) {
+        return undefined;
+    }
+    var values = new Map();
+    for(var i=0; i<solutions.length; i++) {
+        var value = solutions[i][name];
+        if(value == null) {
+            return undefined;
+        }
+        values.set(typeof(value) === 'number' ? value : JSON.stringify(value), value);
+    }
+    return Array.from(values.values());
+};
+
+/**
+ * A basic graph pattern split around property paths (see AbstractQueryTree.translatePathExpressionsInBGP): the
+ * parts are joined in order, and a path starts (or ends) only at the values the solutions so far bind its
+ * variable to, instead of at every node. Its blank nodes and internal variables join the parts, and are dropped
+ * at the end.
+ */
+QueryEngine.prototype.executeBGPScope = function(projection, dataset, parts, env, callback) {
+    var that = this;
+    var solutions = null;
+    async.eachSeries(parts, function(part, k) {
+        if(solutions != null && solutions.length === 0) {
+            return k();
+        }
+        var join = function(err, results) {
+            if(err == null) {
+                solutions = solutions == null ? results : QueryPlan.joinBindings(solutions, results);
+            }
+            k(err);
+        };
+        if(part.kind === 'PATH') {
+            var candidates = solutions == null ? {} :
+                {starts: boundValues(part.subject, solutions), ends: boundValues(part.object, solutions)};
+            PropertyPaths.execute(that, dataset, part, env, candidates, join);
         } else {
-            var result = QueryPlan.unionBindings(set1, set2);
-            that.runBinds(patterns.binds, result, dataset, env, function(err, bindings){
-                if(err != null) {
-                    throw(new BindExpressionError("Error processing bind expressions", patterns.binds, err));
-                } else {
-                    QueryFilters.checkFilters(patterns, bindings, false, dataset, env, that, callback);
-                }
-            });
+            that.executeSelectUnit(projection, dataset, part, env, join);
+        }
+    }, function(err) {
+        if(err != null) {
+            callback(err);
+        } else {
+            callback(null, withoutInternalVariables(solutions));
         }
     });
 };
 
 QueryEngine.prototype.executeAndBGP = function(projection, dataset, pattern, env, callback) {
     var that = this;
-    QueryPlan.executeAndBGPsDPSize(pattern.value, dataset, this, env, function(result){
-        if(result!=null) {
-            that.runBinds(pattern.binds, result, dataset, env, function(err, bindings){
-                if(err != null) {
-                    throw(new BindExpressionError("Error processing bind expressions", pattern.binds, err));
-                } else {
-                    QueryFilters.checkFilters(pattern, bindings, false, dataset, env, that, callback);
-                }
-            });
+    QueryPlan.executeAndBGPsDPSize(pattern.value, dataset, this, env, function(err, result){
+        if(err != null) {
+            callback(err);
+        } else if(result!=null) {
+            // a part of a BGP_SCOPE keeps them for the join with the other parts
+            QueryFilters.checkFilters(pattern, pattern.scoped === true ? result : withoutInternalVariables(result), false, dataset, env, that, callback);
         } else {
-            callback(null);
+            callback(null, null);
         }
     });
+};
+
+// LeftJoin keeps a left solution if none of its merged solutions passes the OPTIONAL's filter
+// (SPARQL 1.1 §18.5). checkFilters returns the failed merged solutions wrapped (__nullify__): each
+// such left solution comes back once, with the right side's variables unbound.
+var restoreFailedLeftSolutions = function(bindings, leftSolutions, set2) {
+    var acum = [];
+    var failed = [];
+    // left solutions already represented in acum
+    var kept = new Set();
+    for(var i=0; i<bindings.length; i++) {
+        if(bindings[i]["__nullify__"] === true) {
+            failed.push(bindings[i]["bindings"]);
+        } else {
+            acum.push(bindings[i]);
+            kept.add(leftSolutions.get(bindings[i]) || bindings[i]);
+        }
+    }
+
+    var rightVars = {};
+    for(i=0; i<set2.length; i++) {
+        for(var p in set2[i]) {
+            rightVars[p] = true;
+        }
+    }
+    for(i=0; i<failed.length; i++) {
+        var merged = failed[i];
+        // an unmatched left solution was not merged
+        var left = leftSolutions.get(merged) || merged;
+        if(kept.has(left)) {
+            continue;
+        }
+        kept.add(left);
+        var solution = {};
+        for(p in left) {
+            solution[p] = left[p];
+        }
+        QueryPlan.augmentMissingBindings(solution, rightVars);
+        acum.push(solution);
+    }
+    return acum;
 };
 
 QueryEngine.prototype.executeLEFT_JOIN = function(projection, dataset, patterns, env, callback) {
     var setQuery1 = patterns.lvalue;
     var setQuery2 = patterns.rvalue;
-    if(setQuery1.kind === "EMPTY_PATTERN") {
-        // LEFT JOIN ( Z | X) => X
-        this.executeSelectUnit(projection, dataset, setQuery2, env, callback);
-    } else {
-        var set1 = null;
-        var set2 = null;
-        var error = null;
-
-        var that = this;
-        var acum, duplicates;
-
-        async.seq(
-            function(k){
-                try {
-                    that.executeSelectUnit(projection, dataset, setQuery1, env, function (result) {
-                        set1 = result;
-                        k();
-                    });
-                } catch(e) {
-                    error = e;
-                    k();
-                }
-            },
-            function(k){
-                if(error != null) {
-                    k();
-                } else {
-                    try {
-                        that.executeSelectUnit(projection, dataset, setQuery2, env, function (result) {
-                            set2 = result;
-                            k();
-                        });
-                    } catch(e) {
-                        error = e;
-                        k();
+    var that = this;
+    this.executeSelectUnits(projection, dataset, setQuery1, setQuery2, env, true, function(err, set1, set2){
+        if(err != null) {
+            callback(err);
+        } else {
+            // merged solution -> the left solution it came from, only needed to undo a failed filter
+            var leftSolutions = patterns.filter != null && patterns.filter.length > 0 ? new Map() : null;
+            var result = QueryPlan.leftOuterJoinBindings(set1, set2, leftSolutions);
+            if(leftSolutions == null) {
+                callback(null, result);
+            } else {
+                QueryFilters.checkFilters(patterns, result, true, dataset, env, that, function(err, bindings){
+                    if(err != null) {
+                        callback(err);
+                    } else {
+                        callback(null, restoreFailedLeftSolutions(bindings, leftSolutions, set2));
                     }
-                }
-            })(
-            function(){
-                if(error != null) {
-                    callback(error);
-                } else {
-                    var result = QueryPlan.leftOuterJoinBindings(set1, set2);
-                    that.runBinds(patterns.binds, result, dataset, env, function(err, bindings){
-                        if(err != null) {
-                            throw(new BindExpressionError("Error processing bind expressions", patterns.binds, err));
-                        } else {
-                            QueryFilters.checkFilters(patterns, result, true, dataset, env, that, function(bindings){
-                                if(set1.length>1 && set2.length>1) {
-                                    var vars = [];
-                                    var vars1 = {};
-                                    for(var p in set1[0]) {
-                                        vars1[p] = true;
-                                    }
-                                    for(p in set2[0]) {
-                                        if(vars1[p] != true) {
-                                            vars.push(p);
-                                        }
-                                    }
-                                    acum = [];
-                                    duplicates = {};
-                                    for(var i=0; i<bindings.length; i++) {
-                                        if(bindings[i]["__nullify__"] === true) {
-                                            for(var j=0; j<vars.length; j++) {
-                                                bindings[i]["bindings"][vars[j]] = null;
-                                            }
-                                            var idx = [];
-                                            var idxColl = [];
-                                            for(var p in bindings[i]["bindings"]) {
-                                                if(bindings[i]["bindings"][p] != null) {
-                                                    idx.push(p+bindings[i]["bindings"][p]);
-                                                    idx.sort();
-                                                    idxColl.push(idx.join(""));
-                                                }
-                                            }
-                                            // reject duplicates -> (set union)
-                                            if(duplicates[idx.join("")]==null) {
-                                                for(j=0; j<idxColl.length; j++) {
-                                                    //console.log(" - "+idxColl[j])
-                                                    duplicates[idxColl[j]] = true;
-                                                }
-                                                ////duplicates[idx.join("")]= true
-                                                acum.push(bindings[i]["bindings"]);
-                                            }
-                                        } else {
-                                            acum.push(bindings[i]);
-                                            var idx = [];
-                                            var idxColl = [];
-                                            for(var p in bindings[i]) {
-                                                idx.push(p+bindings[i][p]);
-                                                idx.sort();
-                                                //console.log(idx.join("") + " -> ok");
-                                                duplicates[idx.join("")] = true;
-                                            }
-
-                                        }
-                                    }
-
-                                    callback(acum);
-                                } else {
-                                    callback(bindings);
-                                }
-                            });
-                        }
-                    });
-                }
-            });
-    }
+                });
+            }
+        }
+    });
 };
 
 QueryEngine.prototype.executeJOIN = function(projection, dataset, patterns, env, callback) {
     var setQuery1 = patterns.lvalue;
     var setQuery2 = patterns.rvalue;
-    var set1 = null;
-    var set2 = null;
-    var error = null;
-
     var that = this;
 
-    async.seq(
-        function(k){
-            try {
-                that.executeSelectUnit(projection, dataset, setQuery1, env, function (result) {
-                    set1 = result;
-                    k();
-                });
-            } catch(e) {
-                error = e;
-                k();
-            }
-        },
-        function(k){
-            if(error != null) {
-                k();
-            } else {
-                try {
-                    that.executeSelectUnit(projection, dataset, setQuery2, env, function (result) {
-                        set2 = result;
-                        k();
-                    });
-                } catch(e) {
-                    error = e;
-                    k();
-                }
-            }
-        })(
-        function(){
-            var result = null;
-            if(error != null) {
-                callback(error);
-            } else if(set1.length ===0 || set2.length===0) {
-                callback([]);
-            } else {
-                var commonVarsTmp = {};
-                var commonVars = [];
-
-                for(var p in set1[0])
-                    commonVarsTmp[p] = false;
-                for(var p  in set2[0]) {
-                    if(commonVarsTmp[p] === false)
-                        commonVars.push(p);
-                }
-
-                if(commonVars.length == 0) {
-                    result = QueryPlan.joinBindings(set1,set2);
-                } else if(that.abstractQueryTree.treeWithUnion(setQuery1) ||
-                    that.abstractQueryTree.treeWithUnion(setQuery2)) {
-                    result = QueryPlan.joinBindings(set1,set2);
-                } else {
-                    result = QueryPlan.joinBindings2(commonVars, set1, set2);
-                }
-                that.runBinds(patterns.binds, result, dataset, env, function(err, bindings){
-                    if(err != null) {
-                        throw(new BindExpressionError("Error processing bind expressions", patterns.binds, err));
-                    } else {
-                        QueryFilters.checkFilters(patterns, bindings, false, dataset, env, that, callback);
-                    }
-                });
-            }
-        });
+    this.executeSelectUnits(projection, dataset, setQuery1, setQuery2, env, true, function(err, set1, set2){
+        if(err != null) {
+            callback(err);
+        } else if(set1.length ===0 || set2.length===0) {
+            callback(null, []);
+        } else {
+            QueryFilters.checkFilters(patterns, QueryPlan.joinBindings(set1, set2), false, dataset, env, that, callback);
+        }
+    });
 };
 
 
@@ -1406,83 +1451,97 @@ QueryEngine.prototype.executeUpdate = function(syntaxTree, callback) {
 
     // environment for the operation -> base ns, declared ns, etc.
     var queryEnv = {blanks:{}, outCache:{}};
-    this.registerNsInEnvironment(prologue, queryEnv);
-    for(var i=0; i<units.length; i++) {
+    var prologues = syntaxTree.prologues || [prologue];
+    this.registerNsInEnvironment(prologues[0], queryEnv);
 
-        var aqt = that.abstractQueryTree.parseExecutableUnit(units[i]);
-        if(aqt.kind === 'insertdata') {
-            var error = null;
-            async.eachSeries(aqt.quads, function(quad, k){
-                if(error === null) {
-                    that._executeQuadInsert(quad, queryEnv, function(err) {
-                        if(err != null)
-                            error = err;
-                        k();
-                    });
-                } else {
-                    k();
-                }
-            }, function(){
-                if(error === null)
-                    callback(null, true);
-                else
-                    callback(error);
-            });
-        } else if(aqt.kind === 'deletedata') {
-            var error = null;
-            async.eachSeries(aqt.quads, function(quad, k){
-                if(error === null) {
-                    that._executeQuadDelete(quad, queryEnv, function(err) {
-                        if(err != null)
-                            error = err;
-                        k();
-                    });
-                } else {
-                    k();
-                }
-            }, function(){
-                if(error === null)
-                    callback(null, true);
-                else
-                    callback(error);
-            });
-        } else if(aqt.kind === 'modify') {
-            this._executeModifyQuery(aqt, queryEnv, callback);
-        } else if(aqt.kind === 'create') {
-            callback(true);
-        } else if(aqt.kind === 'load') {
-            var graph = {'uri': Utils.lexicalFormBaseUri(aqt.sourceGraph, queryEnv)};
-            if(aqt.destinyGraph != null) {
-                graph = {'uri': Utils.lexicalFormBaseUri(aqt.destinyGraph, queryEnv)};
-            }
-            var that = this;
-            this.rdfLoader.load(aqt.sourceGraph.value, graph, function(err, result){
-                if(err) {
-                    callback(new Error("error batch loading quads"));
-                } else {
-                    that.batchLoad(result,function(result){
-                        if(result !== null) {
-                            callback(null, result);
-                        } else {
-                            callback(new Error("Error batch loading quads"));
-                        }
-                    });
-                }
-            });
-        } else if(aqt.kind === 'drop') {
-            this._executeClearGraph(aqt.destinyGraph, queryEnv, callback);
-        } else if(aqt.kind === 'clear') {
-            this._executeClearGraph(aqt.destinyGraph, queryEnv, callback);
-        } else {
-            throw new Error("not supported execution unit");
+    // operations separated by ';' run one after the other; the first error stops the request
+    var lastResult;
+    var index = 0;
+    async.eachSeries(units, function(unit, k){
+        var aqt;
+        if(index > 0) {
+            // the declarations before this operation
+            that.registerNsInEnvironment(prologues[index], queryEnv);
         }
+        index++;
+        try {
+            aqt = that.abstractQueryTree.parseExecutableUnit(unit);
+        } catch(e) {
+            return k(e);
+        }
+        that._executeUpdateUnit(aqt, queryEnv, function(err, result){
+            lastResult = result;
+            k(err);
+        });
+    }, function(err){
+        if(err != null)
+            callback(err);
+        else
+            callback(null, lastResult);
+    });
+};
+
+QueryEngine.prototype._executeUpdateUnit = function(aqt, queryEnv, callback) {
+    var that = this;
+    if(aqt.kind === 'insertdata') {
+        async.eachSeries(aqt.quads, function(quad, k){
+            that._executeQuadInsert(quad, queryEnv, k);
+        }, function(err){
+            if(err != null)
+                callback(err);
+            else
+                callback(null, true);
+        });
+    } else if(aqt.kind === 'deletedata') {
+        async.eachSeries(aqt.quads, function(quad, k){
+            that._executeQuadDelete(quad, queryEnv, null, k);
+        }, function(err){
+            if(err != null)
+                callback(err);
+            else
+                callback(null, true);
+        });
+    } else if(aqt.kind === 'modify') {
+        this._executeModifyQuery(aqt, queryEnv, callback);
+    } else if(aqt.kind === 'create') {
+        callback(null, true);
+    } else if(aqt.kind === 'load') {
+        // without INTO GRAPH, LOAD adds to the default graph (SPARQL 1.1 Update 3.1.4)
+        var graph = {'uri': this.lexicon.defaultGraphUri};
+        if(aqt.destinyGraph != null) {
+            graph = {'uri': Utils.lexicalFormBaseUri(aqt.destinyGraph, queryEnv)};
+        }
+        this.rdfLoader.load(Utils.lexicalFormBaseUri(aqt.sourceGraph, queryEnv), graph, function(err, result){
+            if(err) {
+                callback(err);
+            } else {
+                that.batchLoad(result, callback);
+            }
+        });
+    } else if(aqt.kind === 'drop') {
+        this._executeClearGraph(aqt.destinyGraph, queryEnv, callback);
+    } else if(aqt.kind === 'clear') {
+        this._executeClearGraph(aqt.destinyGraph, queryEnv, callback);
+    } else {
+        callback(new Error("not supported execution unit: " + aqt.kind));
     }
 };
 
+// Stores parsed quads; calls back (err) or (null, number of new quads).
 QueryEngine.prototype.batchLoad = function(quads, callback) {
     var counter = 0;
     var blanks = {};
     var that = this;
+
+    // check every quad first, so that a broken one does not leave the batch half stored
+    var components = ['subject','predicate','object','graph'];
+    for(var q=0; q<quads.length; q++) {
+        for(var c=0; c<components.length; c++) {
+            if(quads[q][components[c]] == null || typeof(quads[q][components[c]]) !== 'object') {
+                return callback(new Error("Cannot load a quad without a " + components[c]));
+            }
+        }
+    }
 
     if(this.eventsOnBatchLoad)
         this.callbacksBackend.startGraphModification();
@@ -1512,11 +1571,11 @@ QueryEngine.prototype.batchLoad = function(quads, callback) {
                 }
             });
         } else if (quad[component]['literal'] || quad[component].token === 'literal') {
-            that.lexicon.registerLiteral(quad[component].literal || quad[component].value, function(oid){
-                if (quad[component].literal != null) {
-                    quad[component] = that.lexicon.parseLiteral(quad[component].literal);
-                    delete quad[component]['literal'];
-                }
+            if (quad[component].literal != null) {
+                quad[component] = that.lexicon.parseLiteral(quad[component].literal);
+            }
+            // the same key as for a literal in a query (lower-case language tag, hexBinary normalization)
+            that.lexicon.registerLiteral(Utils.lexicalFormLiteral(quad[component], {}), function(oid){
                 newQuad[component] = oid;
                 k();
             });
@@ -1551,7 +1610,7 @@ QueryEngine.prototype.batchLoad = function(quads, callback) {
 
     async.eachSeries(quads, function(quad,k){
         var newQuad = {};
-        async.eachSeries(['subject','predicate','object','graph'], function(component,kk){
+        async.eachSeries(components, function(component,kk){
             registerComponent(quad, component, newQuad, kk)
         }, function(){
             var originalQuad = quad;
@@ -1579,11 +1638,11 @@ QueryEngine.prototype.batchLoad = function(quads, callback) {
             that.lexicon.updateAfterWrite();
 
         var exitFn = function(){
-            callback(counter);
+            callback(null, counter);
         };
 
         if(that.eventsOnBatchLoad) {
-            that.callbacksBackend.endGraphModification(exitFn());
+            that.callbacksBackend.endGraphModification(exitFn);
         } else {
             exitFn();
         }
@@ -1596,8 +1655,10 @@ QueryEngine.prototype._executeModifyQuery = function(aqt, queryEnv, callback) {
     var that = this;
     var querySuccess = true;
     var error = new Error("Error executing modify query");
+    var solutions = null;
     var bindings = null;
-    var components = ['subject', 'predicate', 'object', 'graph'];
+    // blank nodes of deleted quads and of the insert template: released at the end unless a quad uses them
+    var blanks = [];
 
     aqt.insert = aqt.insert == null ? [] : aqt.insert;
     aqt.delete = aqt.delete == null ? [] : aqt.delete;
@@ -1634,95 +1695,121 @@ QueryEngine.prototype._executeModifyQuery = function(aqt, queryEnv, callback) {
                     querySuccess = false;
                     return k();
                 } else {
-                    that.denormalizeBindingsList(result, queryEnv, function(result){
-                        if(result!=null) {
-                            bindings = result;
-                        } else {
-                            error = new Error("Error denormalizing bindings list");
-                            querySuccess = false;
-                        }
+                    // keeps the OIDs in result: the data blank nodes of a solution are found by them
+                    solutions = result;
+                    that.copyDenormalizedBindings(result, queryEnv.outCache, function(result){
+                        bindings = result;
                         k();
                     });
                 }
             });
         },function(k) {
             // delete query
-
-            var defaultGraph = aqt.with;
             if(querySuccess) {
-                var quads = [];
-                for(var i=0; i<aqt.delete.length; i++) {
-                    var src = aqt.delete[i];
-
-                    for(var j=0; j<bindings.length; j++) {
-                        var quad = {};
-                        var binding = bindings[j];
-
-                        for(var c=0; c<components.length; c++) {
-                            var component = components[c];
-                            if(component == 'graph' && src[component] == null) {
-                                quad['graph'] = defaultGraph;
-                            } else if(src[component].token === 'var') {
-                                quad[component] = binding[src[component].value];
-                            } else {
-                                quad[component] = src[component];
-                            }
-                        }
-
-                        quads.push(quad);
-                    }
-                }
-
-                async.eachSeries(quads, function(quad,kk) {
-                    that._executeQuadDelete(quad, queryEnv, function(){
-                        kk();
-                    });
-                },function(){ k(); });
+                that.instantiateTemplate(aqt.delete, solutions, bindings, aqt.with, null, queryEnv, function(instances){
+                    async.eachSeries(instances, function(instance, kk) {
+                        that._executeQuadDelete(instance.quad, instance.env, blanks, function(){
+                            kk();
+                        });
+                    },function(){ k(); });
+                });
             } else {
                 k();
             }
         },function(k) {
             // insert query
-            var defaultGraph = aqt.with;
-
             if(querySuccess) {
-                var quads = [];
-                for(var i=0; i<aqt.insert.length; i++) {
-                    var src = aqt.insert[i];
-
-                    for(var j=0; j<bindings.length; j++) {
-                        var quad = {};
-                        var binding = bindings[j];
-
-                        for(var c=0; c<components.length; c++) {
-                            var component = components[c];
-                            if(component == 'graph' && src[component] == null) {
-                                quad['graph'] = defaultGraph;
-                            } else if(src[component].token === 'var') {
-                                quad[component] = binding[src[component].value];
-                            } else {
-                                quad[component] = src[component];
-                            }
-                        }
-
-                        quads.push(quad);
-                    }
-                }
-
-                async.eachSeries(quads, function(quad,kk) {
-                    that._executeQuadInsert(quad, queryEnv, function(){
-                        kk();
-                    });
-                },function(){ k(); });
+                that.instantiateTemplate(aqt.insert, solutions, bindings, aqt.with, blanks, queryEnv, function(instances){
+                    async.eachSeries(instances, function(instance, kk) {
+                        that._executeQuadInsert(instance.quad, instance.env, function(){
+                            kk();
+                        });
+                    },function(){ k(); });
+                });
             } else {
                 k();
             }
+        },function(k) {
+            that._releaseBlanks(blanks, function(){ k(); });
         }
     )(function(){
         if(querySuccess)
-            callback(null);
+            callback(null, true);
         else
             callback(error);
+    });
+};
+
+/**
+ * Builds the quads of an INSERT or DELETE template for every solution (SPARQL 1.1 Update 3.1.3) and calls back
+ * with [{quad, env}]. A quad with an unbound variable is skipped. Each solution gets its own blank node map in
+ * env: a data blank node it binds keeps its OID, and a blank node of the template or one from BNODE() becomes a
+ * new blank node per solution, its OID added to newBlanks. Without newBlanks (DELETE) such a quad is skipped: a
+ * DELETE template must not contain blank nodes, and a new blank node is in no quad.
+ */
+QueryEngine.prototype.instantiateTemplate = function(template, solutions, bindings, defaultGraph, newBlanks, queryEnv, callback) {
+    var that = this;
+    var components = ['subject', 'predicate', 'object', 'graph'];
+    var instances = [];
+    var index = 0;
+    async.eachSeries(bindings, function(binding, k) {
+        var solution = solutions[index++];
+        var env = {blanks: {}, outCache: queryEnv.outCache, namespaces: queryEnv.namespaces, base: queryEnv.base};
+        for(var variable in solution) {
+            if(typeof(solution[variable]) === 'number' && binding[variable] != null && binding[variable].token === 'blank') {
+                env.blanks[binding[variable].value] = solution[variable];
+            }
+        }
+        // template label or BNODE() label -> blank node of this solution, with the label the lexicon gives its OID
+        var fresh = {};
+        async.eachSeries(template, function(src, kk) {
+            var quad = {};
+            // [component, key in fresh]
+            var newTerms = [];
+            for(var c=0; c<components.length; c++) {
+                var component = components[c];
+                var term = src[component];
+                if(component === 'graph' && term == null) {
+                    quad.graph = defaultGraph;
+                } else if(term.token === 'var') {
+                    var value = binding[term.value];
+                    if(value == null)
+                        return kk();
+                    if(value.token === 'blank' && env.blanks[value.value] == null) {
+                        if(newBlanks == null)
+                            return kk();
+                        newTerms.push([component, 'v' + value.value]);
+                    }
+                    quad[component] = value;
+                } else if(term.token === 'blank') {
+                    if(newBlanks == null)
+                        return kk();
+                    newTerms.push([component, 't' + term.value]);
+                    quad[component] = term;
+                } else {
+                    quad[component] = term;
+                }
+            }
+            async.eachSeries(newTerms, function(newTerm, kkk) {
+                var component = newTerm[0], key = newTerm[1];
+                if(fresh[key] != null) {
+                    quad[component] = fresh[key];
+                    return kkk();
+                }
+                that.lexicon.registerBlank(function(oid){
+                    fresh[key] = {token: 'blank', value: '_:' + oid};
+                    env.blanks[fresh[key].value] = oid;
+                    newBlanks.push(oid);
+                    quad[component] = fresh[key];
+                    kkk();
+                });
+            }, function(){
+                instances.push({quad: quad, env: env});
+                kk();
+            });
+        }, function(){ k(); });
+    }, function(){
+        callback(instances);
     });
 };
 
@@ -1769,10 +1856,13 @@ QueryEngine.prototype._executeQuadInsert = function(quad, queryEnv, callback) {
         });
 };
 
-QueryEngine.prototype._executeQuadDelete = function(quad, queryEnv, callback) {
+// Deletes a quad if the store has it. The OIDs of its blank nodes are added to deletedBlanks, to be released
+// later with _releaseBlanks (null: released right away).
+QueryEngine.prototype._executeQuadDelete = function(quad, queryEnv, deletedBlanks, callback) {
     var that = this;
     var normalized;
     var error = false;
+    var found = false;
     var errorMessage, key;
     async.seq(
         function(k){
@@ -1789,8 +1879,13 @@ QueryEngine.prototype._executeQuadDelete = function(quad, queryEnv, callback) {
         function(k){
             if(error === false) {
                 key = new QuadIndex.NodeKey(normalized);
-                that.backend.delete(key, function(){
+                that.backend.search(key, function(result){
+                    found = result === true;
+                    if(found) {
+                        that.backend.delete(key, function(){ k(); });
+                    } else {
                         k();
+                    }
                 });
             } else {
                 k();
@@ -1798,12 +1893,24 @@ QueryEngine.prototype._executeQuadDelete = function(quad, queryEnv, callback) {
         },
         function(k){
             if(error === false) {
+                // also for a missing quad: normalizeQuad registered its terms. Blank nodes are left to _releaseBlanks,
+                // other quads may still use them
                 that.lexicon.unregister(quad, key, function(){
-                    that.callbacksBackend.nextGraphModification(Callbacks['deleted'], [quad, normalized]);
+                    if(found)
+                        that.callbacksBackend.nextGraphModification(Callbacks['deleted'], [quad, normalized]);
                     k();
                 });
             } else {
                 k();
+            }
+        },
+        function(k){
+            var blanks = error === false ? that._blankOids(quad, normalized) : [];
+            if(deletedBlanks != null) {
+                Array.prototype.push.apply(deletedBlanks, blanks);
+                k();
+            } else {
+                that._releaseBlanks(blanks, function(){ k(); });
             }
         })(
         function(){
@@ -1815,17 +1922,63 @@ QueryEngine.prototype._executeQuadDelete = function(quad, queryEnv, callback) {
         });
 };
 
+// The OIDs of the blank nodes of a quad (subject or object; a predicate or graph name is never a blank node)
+QueryEngine.prototype._blankOids = function(quad, normalized) {
+    var oids = [];
+    if(quad.subject.token === 'blank')
+        oids.push(normalized.subject);
+    if(quad.object.token === 'blank')
+        oids.push(normalized.object);
+    return oids;
+};
+
+// Removes the blank nodes with these OIDs from the lexicon if no quad uses them anymore.
+QueryEngine.prototype._releaseBlanks = function(oids, callback) {
+    var that = this;
+    async.eachSeries(Array.from(new Set(oids)), function(oid, k){
+        that.backend.range(new QuadIndex.Pattern({subject: oid, predicate: 'p', object: 'o', graph: 'g'}), function(asSubject){
+            if(asSubject != null && asSubject.length > 0)
+                return k();
+            that.backend.range(new QuadIndex.Pattern({subject: 's', predicate: 'p', object: oid, graph: 'g'}), function(asObject){
+                if(asObject != null && asObject.length > 0)
+                    return k();
+                that.lexicon.unregisterBlank(oid, function(){ k(); });
+            });
+        });
+    }, function(){
+        callback();
+    });
+};
+
+// Runs an update inside the update that is already in progress: unlike execute(), it neither starts
+// nor ends a graph modification, so its changes are announced together with the surrounding update.
+QueryEngine.prototype._executeNestedUpdate = function(queryString, callback) {
+    var syntaxTree;
+    try {
+        syntaxTree = this.abstractQueryTree.parseQueryString(queryString);
+    } catch(e) {
+        return callback(Utils.toError(e));
+    }
+    this.executeUpdate(syntaxTree, callback);
+};
+
 QueryEngine.prototype._executeClearGraph = function(destinyGraph, queryEnv, callback) {
     var that = this;
+    var finish = function(err) {
+        if(err)
+            callback(err);
+        else
+            callback(null, true);
+    };
     if(destinyGraph === 'default') {
-        this.execute("DELETE { ?s ?p ?o } WHERE { ?s ?p ?o }", callback);
+        this._executeNestedUpdate("DELETE { ?s ?p ?o } WHERE { ?s ?p ?o }", finish);
     } else if(destinyGraph === 'named') {
         that.lexicon.registeredGraphs(true, function(graphs){
             if(graphs!=null) {
-                var foundErrorDeleting = false;
+                var foundErrorDeleting = null;
                 async.eachSeries(graphs, function(graph,k){
-                    if(!foundErrorDeleting) {
-                        that.execute("DELETE { GRAPH <"+graph+"> { ?s ?p ?o } } WHERE { GRAPH <"+graph+"> { ?s ?p ?o } }", function(err, results){
+                    if(foundErrorDeleting == null) {
+                        that._executeNestedUpdate("DELETE { GRAPH <"+graph+"> { ?s ?p ?o } } WHERE { GRAPH <"+graph+"> { ?s ?p ?o } }", function(err){
                             if(!err) {
                                 that.lexicon.resolveUri(graph, function(oid){
                                     if(oid != -1) {
@@ -1833,7 +1986,7 @@ QueryEngine.prototype._executeClearGraph = function(destinyGraph, queryEnv, call
                                             k();
                                         });
                                     } else {
-                                        foundErrorDeleting = "Cannot find graph "+graph+" to clear it";
+                                        foundErrorDeleting = new Error("Cannot find graph "+graph+" to clear it");
                                         k();
                                     }
                                 });
@@ -1846,19 +1999,18 @@ QueryEngine.prototype._executeClearGraph = function(destinyGraph, queryEnv, call
                         k();
                     }
                 }, function(){
-                    callback(!foundErrorDeleting);
+                    finish(foundErrorDeleting);
                 });
             } else {
-                callback(false, "Error deleting named graphs");
+                finish(new Error("Error deleting named graphs"));
             }
         });
     } else if(destinyGraph === 'all') {
-        var that = this;
-        this.execute("CLEAR DEFAULT", function(err, result) {
+        this._executeClearGraph('default', queryEnv, function(err) {
             if(!err) {
-                that.execute("CLEAR NAMED", callback);
+                that._executeClearGraph('named', queryEnv, finish);
             } else {
-                callback(false,result);
+                finish(err);
             }
         });
     } else {
@@ -1866,35 +2018,25 @@ QueryEngine.prototype._executeClearGraph = function(destinyGraph, queryEnv, call
         if(destinyGraph.token == 'uri') {
             var graphUri = Utils.lexicalFormBaseUri(destinyGraph,queryEnv);
             if(graphUri != null) {
-                this.callbacksBackend.ongoingModification = true;
-                this.execute("DELETE { GRAPH <"+graphUri+"> { ?s ?p ?o } } WHERE { GRAPH <"+graphUri+"> { ?s ?p ?o } }", function(res){
-                    that.callbacksBackend.ongoingModification = false;
-                    callback(res);
-                });
+                this._executeNestedUpdate("DELETE { GRAPH <"+graphUri+"> { ?s ?p ?o } } WHERE { GRAPH <"+graphUri+"> { ?s ?p ?o } }", finish);
             } else {
-                callback(false, "wrong graph URI");
+                finish(new Error("wrong graph URI"));
             }
         } else {
-            callback(false, "wrong graph URI");
+            finish(new Error("wrong graph URI"));
         }
     }
 };
 
 QueryEngine.prototype.checkGroupSemantics = function(groupVars, projectionVars) {
-    if(groupVars === 'singleGroup') {
-        // aggregates without GROUP BY: no variable may be projected without being aggregated
-        groupVars = [];
+    if(projectionVars[0].kind === '*') {
+        return false;
     }
-
+    // aggregates without GROUP BY ('singleGroup') have no group variables: nothing may be projected without being aggregated
     var projection = {};
-
-    for(var i=0; i<groupVars.length; i++) {
-        var groupVar = groupVars[i];
-        if(groupVar.token === 'var') {
-            projection[groupVar.value] = true;
-        } else if(groupVar.token === 'aliased_expression') {
-            projection[groupVar.alias.value] = true;
-        }
+    var names = QueryEngine.groupVariables(groupVars);
+    for(var i=0; i<names.length; i++) {
+        projection[names[i]] = true;
     }
 
     for(i=0; i<projectionVars.length; i++) {
@@ -1920,20 +2062,60 @@ QueryEngine.prototype.runBinds = function(binds, bindings, dataset, env, callbac
     var originalBindings = bindings;
     if(binds != null && binds.length > 0) {
         that.copyDenormalizedBindings(bindings, env.outCache, function(denormBindings){
+            // IRIs and literals to replace by their OID
+            var terms = [];
             for(var i=0; i<bindings.length; i++) {
                 for(var j=0; j<binds.length; j++) {
                     var bind = binds[j];
                     var thisDenormBindings = denormBindings[i];
                     var ebv = QueryFilters.runFilter(bind.expression, thisDenormBindings, that, dataset, env);
-                    if(QueryFilters.isEbvError(ebv)) {
-                        callback(ebv);
-                    } else {
-                        // we set the value for the new binding
-                        originalBindings[i][bind.as.value] = ebv;
+                    // SPARQL 1.1 Extend: if the expression raises an error, the variable stays unbound;
+                    // otherwise the following BINDs see it
+                    if(!QueryFilters.isEbvError(ebv)) {
+                        // null for an unbound variable (BIND(?unbound AS ?y))
+                        var term = QueryFilters.resultTerm(ebv);
+                        originalBindings[i][bind.as.value] = term;
+                        thisDenormBindings[bind.as.value] = term;
+                        if(term != null && term.token === 'blank') {
+                            // a blank node of the store can only come from a variable of the solution: it takes
+                            // that OID (a new one from BNODE() has none)
+                            for(var v in originalBindings[i]) {
+                                var bound = thisDenormBindings[v];
+                                if(typeof(originalBindings[i][v]) === 'number' && bound != null && bound.token === 'blank' && bound.value === term.value) {
+                                    originalBindings[i][bind.as.value] = originalBindings[i][v];
+                                    break;
+                                }
+                            }
+                        } else if(term != null && (term.token === 'uri' || term.token === 'literal')) {
+                            terms.push({solution: originalBindings[i], variable: bind.as.value, term: term});
+                        }
                     }
                 }
             }
-            callback(null, bindings);
+            // An IRI, literal or blank node of the store gets its OID, like a term matched by a triple pattern, so such a
+            // term object in a solution is never in the lexicon: joins (areCompatibleBindings), GROUP BY and
+            // DISTINCT can then compare OIDs and term objects as they are.
+            // lexical form -> OID or -1, for values that repeat (e.g. a constant)
+            var oids = new Map();
+            async.eachSeries(terms, function(entry, k){
+                var key = entry.term.token === 'uri' ? "u" + entry.term.value : "l" + Utils.lexicalFormLiteral(entry.term, env);
+                var replace = function(oid) {
+                    if(oid != null && oid !== -1) {
+                        entry.solution[entry.variable] = oid;
+                    }
+                    k();
+                };
+                if(oids.has(key)) {
+                    replace(oids.get(key));
+                } else {
+                    that.normalizeTerm(entry.term, env, false, function(oid){
+                        oids.set(key, oid);
+                        replace(oid);
+                    });
+                }
+            }, function(){
+                callback(null, bindings);
+            });
         });
     } else {
         callback(null, bindings);

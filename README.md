@@ -28,6 +28,9 @@ Please read this README file carefully to find the current set of features.
 - [API](#api)
 	- [Store creation](#store-creation)
 	- [Query execution](#query-execution)
+	- [Union default graph](#union-default-graph)
+	- [Error handling](#error-handling)
+	- [Promise API](#promise-api)
 	- [Construct queries RDF Interfaces API](#construct-queries-rdf-interfaces-api)
 	- [Loading remote graphs](#loading-remote-graphs)
 	- [High level interface](#high-level-interface)
@@ -110,6 +113,7 @@ This is a list of the different kind of queries currently implemented:
 - variable aliases
 - variable aggregation: MAX, MIN, COUNT, AVG, SUM functions
 - GROUP BY clauses
+- HAVING clauses (SELECT queries)
 - DISTINCT query modifier
 - CONSTRUCT queries
 - ASK queries
@@ -124,6 +128,7 @@ This is a list of the different kind of queries currently implemented:
 - FILTER EXISTS / NOT EXISTS operators
 - BIND
 - FILTER IN / NOT IN operators
+- property paths: sequence `/`, inverse `^`, alternative `|`, and the modifiers `*`, `+`, `?`. Negated property sets (`!`) and `{n,m}` are not supported.
 
 
 ## Installation
@@ -131,10 +136,10 @@ This is a list of the different kind of queries currently implemented:
 Install the fork directly from GitHub, pinned to a release tag:
 
 ```bash
-$ yarn add rdfstore@webern-unibas-ch/rdfstore-js#v0.9.18-alpha.24
+$ yarn add rdfstore@webern-unibas-ch/rdfstore-js#v0.9.18-alpha.25
 ```
 
-With npm: `npm install github:webern-unibas-ch/rdfstore-js#v0.9.18-alpha.24`. All available versions are listed under [Tags](https://github.com/webern-unibas-ch/rdfstore-js/tags).
+With npm: `npm install github:webern-unibas-ch/rdfstore-js#v0.9.18-alpha.25`. All available versions are listed under [Tags](https://github.com/webern-unibas-ch/rdfstore-js/tags).
 
 ## Building
 
@@ -155,12 +160,14 @@ It writes a script-tag bundle (`dist/rdfstore.js`, `dist/rdfstore_min.js`) and a
 
 ## Module formats
 
+*ES module support (`import` in Node.js, the `browser` export condition and the `.mjs` bundles): since v0.9.18-alpha.24.*
+
 Which file you get depends on how the package is loaded:
 
 | Environment | Entry | API |
 |---|---|---|
-| Node.js, `require('rdfstore')` or `import('rdfstore')` | `src/store.js` | `create`, `connect`, `Store` (named exports with `import`) |
-| Bundlers targeting the browser (esbuild, Vite, webpack, Rollup), via the `browser` export condition | `dist/rdfstore.mjs` | named exports `create`, `connect`, `Store`, plus a default export |
+| Node.js, `require('rdfstore')` or `import('rdfstore')` | `src/store.js` | `create`, `connect`, `Store`, `promises` (named exports with `import`) |
+| Bundlers targeting the browser (esbuild, Vite, webpack, Rollup), via the `browser` export condition | `dist/rdfstore.mjs` | named exports `create`, `connect`, `Store`, `promises`, plus a default export |
 | `<script src="dist/rdfstore_min.js">` | `dist/rdfstore.js`, `dist/rdfstore_min.js` | global `rdfstore` |
 | `<script type="module">` | `dist/rdfstore_min.mjs` | as the ES module bundle |
 
@@ -173,7 +180,28 @@ create(function(err, store) {
 });
 ```
 
-The browser bundles replace Node's `http`, `https`, `url`, `fs` and `path` modules with empty stubs. Loading data from a remote URL or a local file therefore only works through the Node.js entry. In the browser, load data from strings.
+The browser bundles replace Node's `http`, `https`, `url`, `fs` and `path` modules with empty stubs. Loading a local file therefore only works through the Node.js entry. In the browser, load data from strings, or give the store a network transport for remote URLs (`LOAD <url>`), for example one based on `fetch`:
+
+```javascript
+store.setNetworkTransport({
+  load: function(uri, accept, callback) {
+    fetch(uri, { headers: { Accept: accept } })
+      .then(function(res) {
+        if (!res.ok) throw new Error('HTTP error: ' + res.status);
+        return res.text().then(function(data) {
+          return { headers: { 'content-type': res.headers.get('content-type') }, data: data };
+        });
+      })
+      .then(function(result) { callback(null, result); }, callback);
+  }
+});
+```
+
+The transport applies to that store only. *Since v0.9.18-alpha.25.*
+
+*Since v0.9.18-alpha.25.*
+
+TypeScript declarations ship with the package (`types/rdfstore.d.ts`) and are picked up automatically for every entry above. They cover the store, its promise API, the query results (`SelectResult`, `Graph`, ...) and the RDF Interfaces model.
 
 ## Tests
 
@@ -224,16 +252,83 @@ store.execute("SELECT * { ?s ?p ?o }", function(err, results){
 
 // execution with an explicit default and named graph
 
-var defaultGraph = [{'token':'uri', 'value': graph1}, {'token':'uri', 'value': graph2}, ...];
-var namedGraphs  = [{'token':'uri', 'value': graph3}, {'token':'uri', 'value': graph4}, ...];
+var defaultGraph = [graph1, graph2, ...]; // graph URIs as strings
+var namedGraphs  = [graph3, graph4, ...];
 
 store.executeWithEnvironment("SELECT * { ?s ?p ?o }",defaultGraph,
   namedGraphs, function(err, results) {
-  if(err) {
+  if(!err) {
 	// process results
   }
 });
 ```
+
+Several default graphs (several `FROM`, or the default graphs passed to `execute`) are merged: a triple in more than one of them comes back once. *Since v0.9.18-alpha.25; before, once per graph.*
+
+### Union default graph
+
+*Since v0.9.18-alpha.25.*
+
+With the option `unionDefaultGraph`, a query that names no dataset (no `FROM` or `FROM NAMED`, no graphs passed to `execute`) reads all graphs of the store. Data can be loaded into named graphs and still be queried without `GRAPH`:
+
+```javascript
+rdfstore.create({unionDefaultGraph: true}, function(err, store) {
+  store.load("text/turtle", curated, "http://example.org/curated", function() {
+    store.load("text/turtle", generated, "http://example.org/generated", function() {
+      // sees the triples of both graphs and of the default graph
+      store.execute("SELECT * { ?s ?p ?o }", function(err, results) { /* ... */ });
+    });
+  });
+});
+```
+
+- The default graph of such a query is the merge of the default graph and all named graphs; a triple in several graphs comes back once. Blank nodes are shared between the graphs of a store, so the same blank node in two graphs is one node.
+- `GRAPH ?g` ranges over all named graphs, without `FROM NAMED`. It does not bind the default graph.
+- A query that names a dataset reads exactly that dataset, as without the option.
+- The option changes queries only. Updates (`INSERT DATA`, `DELETE WHERE`, `INSERT`/`DELETE … WHERE`, `CLEAR DEFAULT`), `store.insert`, `store.delete`, `store.load`, `store.graph()` and `store.node()` without a graph use the store's own default graph, as before. So `SELECT * { ?s ?p ?o }` finds the triples of the named graphs, but `DELETE WHERE { ?s ?p ?o }` does not delete them: use `GRAPH <g>` or `DROP GRAPH <g>`.
+
+### Error handling
+
+*Since v0.9.18-alpha.25.*
+
+Every callback is called exactly once, as `callback(err, result)`. If the operation fails, `err` is an `Error` and `result` is not set. This covers SPARQL syntax errors, unsupported SPARQL features (`err.name === 'NonSupportedSparqlFeatureError'`), and data that cannot be loaded or parsed. None of these are thrown, so a failing query inside another callback cannot crash the process.
+
+```javascript
+store.execute("SELECT * WHERE { ?s ", function(err, results) {
+  if(err) {
+    console.error(err.message); // SPARQL syntax error
+    return;
+  }
+  // process results
+});
+```
+
+Two cases still throw synchronously: calling a method with the wrong arguments (a programming error), and an exception thrown by your own callback, which the store does not catch and never reports back to you as `err`.
+
+### Promise API
+
+*Since v0.9.18-alpha.25.*
+
+`rdfstore.promises.create()` and `store.promises` offer the asynchronous methods with promises instead of callbacks. Each method takes the same arguments as its callback version, minus the callback. It resolves with the callback's result and rejects with its error.
+
+```javascript
+const store = await rdfstore.promises.create();
+
+const count = await store.promises.load('text/turtle', turtleString);
+const results = await store.promises.execute('SELECT * { ?s ?p ?o }');
+
+try {
+  await store.promises.execute('SELECT * WHERE { ?s ');
+} catch(err) {
+  console.error(err.message); // SPARQL syntax error
+}
+
+await store.promises.close();
+```
+
+The promise methods are `execute`, `executeWithEnvironment`, `load`, `insert`, `delete`, `clear`, `graph`, `node`, `registeredGraphs` and `close`. Calling a promise method with the wrong arguments rejects instead of throwing.
+
+The promise API lives in its own namespace, so the callback API keeps working unchanged. The callback methods also keep their optional callbacks: `store.execute(query)` without a callback still ignores the result instead of returning a promise. The events API has no promise version, because its listeners fire more than once.
 
 ### Construct queries RDF Interfaces API
 
@@ -258,15 +353,16 @@ store.execute(query, function(err, graph){
 
 rdfstore-js will try to retrieve remote RDF resources across the network when a 'LOAD' SPARQL query is executed.
 The node.js build of the library will use regular TCP sockets and perform proper content negotiation. It will also follow a limited number of redirections.
-The browser build, will try to perform an AJAX request to retrieve the resource using the correct HTTP headers. Nevertheless, this implementation is subjected to the limitations of the Same Domain Policy implemented in current browsers that prevents cross domain requests. Redirections, even for the same domain, may also fail due to the browser removing the 'Accept' HTTP header of the original request.
-rdfstore-js relies in on the jQuery Javascript library to peform cross-browser AJAX requests. This library must be linked in order to exeucte 'LOAD' requests in the browser.
+The browser bundles have no HTTP client of their own: give the store a network transport, as shown in [Module formats](#module-formats).
+
+`LOAD <uri>` adds the triples to the default graph, `LOAD <uri> INTO GRAPH <g>` to the graph `<g>`. *Since v0.9.18-alpha.25; before, `LOAD <uri>` loaded into the graph `<uri>`.*
 
 ```javascript
 store.execute('LOAD <http://dbpedialite.org/titles/Lisp_%28programming_language%29>\
-			   INTO GRAPH <lisp>', function(err){
-  if(err) {
+			   INTO GRAPH <http://example.org/lisp>', function(err){
+  if(!err) {
 	var query = 'PREFIX foaf:<http://xmlns.com/foaf/0.1/> SELECT ?o \
-				 FROM NAMED <lisp> { GRAPH <lisp> { ?s foaf:page ?o} }';
+				 FROM NAMED <http://example.org/lisp> { GRAPH <http://example.org/lisp> { ?s foaf:page ?o} }';
 	store.execute(query, function(err, results) {
 	  // process results
 	});
@@ -475,6 +571,7 @@ store.stopObservingNode(cb);
 
 In the same way, there are *startObservingQuery* and *stopObservingQuery* functions that makes possible to set up callbacks for whole SPARQL queries.
 The store will try to be smart and not perform unnecessary evaluations of these query after quad insertion/deletions. Nevertheless too broad queries must be used carefully with the events API.
+The optional third argument of *startObservingQuery* is called once the initial query has run, after the listener has received its result. It gets `null`, or the error if the query failed (the listener is then not called). *Since v0.9.18-alpha.25; before, it could be called before the initial result and got no error.*
 
 ### Custom Filter Functions
 

@@ -172,30 +172,6 @@ PersistentLexicon.prototype.resolveUri = function(uri,callback) {
 };
 
 /**
- * Returns the cost associated to the URI.
- * If the URI hasn't been associated in the lexicon, -1 is returned.
- * @param uri
- * @returns {*}
- */
-PersistentLexicon.prototype.resolveUriCost = function(uri, callback) {
-    if(uri === this.defaultGraphUri) {
-        callback(0);
-    } else {
-        var objectStore = this.db.transaction(["components"]).objectStore("components");
-        var request = objectStore.index("value").get("_u:"+uri);
-        request.onsuccess = function(event) {
-            if(event.target.result != null)
-                callback(event.target.result.cost);
-            else
-                callback(-1);
-        };
-        request.onerror = function(event) {
-            callback(null, new Error("Error retrieving uri data "+event.target.errorCode));
-        };
-    }
-};
-
-/**
  * Register a new blank node in the lexicon.
  * @param label
  * @returns {string}
@@ -212,49 +188,6 @@ PersistentLexicon.prototype.registerBlank = function(callback) {
     requestAdd.onerror = function(event){
         callback(null, new Error("Error inserting the URI data"+event.target.errorCode));
     };
-};
-
-/**
- * Resolves a blank node OID
- * @param oid
- * @param callback
- */
-//PersistentLexicon.prototype.resolveBlank = function(oid,callback) {
-//    var that = this;
-//    var objectStore = that.db.transaction(["blanks"]).objectStore("blanks");
-//    var request = objectStore.get(oid);
-//    request.onsuccess = function(event) {
-//        if(event.target.result != null)
-//            callback(event.target.result.id);
-//        else {
-//            // we register it if it doesn't exist
-//        }
-//    };
-//    request.onerror = function(event) {
-//        callback(null, new Error("Error retrieving blank data "+event.target.errorCode));
-//    }
-//
-//    this.oidBlanks.search(label, function(oidData){
-//        if(oidData != null) {
-//            callback(oidData);
-//        } else {
-//            // ??
-//            var oid = that.oidCounter;
-//            this.oidCounter++;
-//            callback(""+oid);
-//            //
-//        }
-//    });
-//};
-
-/**
- * Blank nodes don't have an associated cost.
- * @param label
- * @param callback
- * @returns {number}
- */
-PersistentLexicon.prototype.resolveBlankCost = function(label, callback) {
-    callback(0);
 };
 
 /**
@@ -314,25 +247,6 @@ PersistentLexicon.prototype.resolveLiteral = function (literal,callback) {
     request.onerror = function(event) {
         callback(null, new Error("Error retrieving literal data "+event.target.errorCode));
     }
-};
-
-/**
- * Returns the cost associated to the literal or -1 if no literal is found.
- * @param literal
- * @param callback
- */
-PersistentLexicon.prototype.resolveLiteralCost = function (literal,callback) {
-    var objectStore = this.db.transaction(["components"]).objectStore("components");
-    var request = objectStore.index("components").get(literal);
-    request.onsuccess = function(event) {
-        if(event.target.result != null)
-            callback(event.target.result.cost);
-        else
-            callback(-1);
-    };
-    request.onerror = function(event) {
-        callback(null, new Error("Error retrieving literal data "+event.target.errorCode));
-    };
 };
 
 
@@ -424,28 +338,41 @@ PersistentLexicon.prototype.clear = function(callback) {
 
 /**
  * Removes the values associated to the subject, predicate, object and graph
- * values of the provided quad.
+ * values of the provided quad. Blank nodes are left alone: other quads may still
+ * use them, so the query engine releases them with unregisterBlank.
  * @param quad
  * @param key
  * @param callback
  */
 PersistentLexicon.prototype.unregister = function (quad, key, callback) {
     var that = this;
-    async.seq(function(k){
-        that._unregisterTerm(quad.subject.token, key.subject,k);
-    }, function(k){
-        that._unregisterTerm(quad.predicate.token, key.predicate,k);
-    }, function(k){
-        that._unregisterTerm(quad.object.token, key.object, k);
-    }, function(k){
-        if (quad.graph != null) {
-            that._unregisterTerm(quad.graph.token, key.graph, k);
-        } else {
+    var unregisterTerm = function(term, oid, k) {
+        if (term == null || term.token === 'blank') {
             k();
+        } else {
+            that._unregisterTerm(term.token, oid, k);
         }
+    };
+    async.seq(function(k){
+        unregisterTerm(quad.subject, key.subject, k);
+    }, function(k){
+        unregisterTerm(quad.predicate, key.predicate, k);
+    }, function(k){
+        unregisterTerm(quad.object, key.object, k);
+    }, function(k){
+        unregisterTerm(quad.graph, key.graph, k);
     })(function(){
         callback(true);
     });
+};
+
+/**
+ * Removes a blank node that no quad uses anymore.
+ * @param oid
+ * @param callback
+ */
+PersistentLexicon.prototype.unregisterBlank = function (oid, callback) {
+    this._unregisterTerm('blank', oid, callback);
 };
 
 /**
