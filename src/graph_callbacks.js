@@ -3,7 +3,6 @@
 //imports
 var _ = require('./utils');
 var async = require('./utils');
-var QuadIndex = require('./quad_index').QuadIndex;
 var Pattern = require('./quad_index').Pattern;
 var RDFModel = require('./rdf_model');
 var AbstractQueryTree = require('./abstract_query_tree').AbstractQueryTree;
@@ -140,13 +139,13 @@ Callbacks.CallbacksBackend.prototype.dispatchNotifications = function(notificati
 	if(deleted!=null) {
 	    try {
 		callback(Callbacks['deleted'],deleted);
-	    }catch(e){}
+	    }catch(e){ /* swallowed on purpose: a failing handler must not stop the other notifications */ }
 	}
 	for(var event in notificationsMap[callbackId]) {
 	    if(event!=Callbacks['deleted']) {
 		try{
 		    callback(event, notificationsMap[callbackId][event]);
-		}catch(e){}
+		}catch(e){ /* swallowed on purpose: a failing handler must not stop the other notifications */ }
 
 	    }
 	}
@@ -155,7 +154,7 @@ Callbacks.CallbacksBackend.prototype.dispatchNotifications = function(notificati
 
 Callbacks.CallbacksBackend.prototype._searchCallbacksInIndex = function(index, order, event, quadPair, notificationsMap) {
     var quadPairNomalized = quadPair[1];
-    var quadPair = quadPair[0];
+    quadPair = quadPair[0];
 
     for(var i=0; i<(order.length+1); i++) {
 	var matched = index['_'] || [];
@@ -324,7 +323,7 @@ Callbacks.CallbacksBackend.prototype.observeNode = function() {
 		    mustFlush = false;
 		    try {
 			callback(node);
-		    }catch(e){}
+		    }catch(e){ /* swallowed on purpose: a failing handler must not stop the other notifications */ }
 		} else if(event !== 'eventsFlushed') {
 		    mustFlush = true;
 		    for(var i = 0; i<triples.length; i++) {
@@ -348,7 +347,7 @@ Callbacks.CallbacksBackend.prototype.observeNode = function() {
 	    that.subscribe(uri,null,null,null,observer,function(){
 		try {
 		    callback(node);
-		}catch(e){}
+		}catch(e){ /* swallowed on purpose: a failing handler must not stop the other notifications */ }
 
 		if(doneCallback)
 		    doneCallback(true)
@@ -459,7 +458,7 @@ Callbacks.CallbacksBackend.prototype.stopObservingQuery = function(query) {
 
 Callbacks.CallbacksBackend.prototype._searchQueriesInIndex = function(index, order, quadPair) {
     var quadPairNomalized = quadPair[1];
-    var quadPair = quadPair[0];
+    quadPair = quadPair[0];
 
     for(var i=0; i<(order.length+1); i++) {
 	var matched = index['_'] || [];
@@ -504,7 +503,7 @@ Callbacks.CallbacksBackend.prototype.dispatchQueries = function(callback) {
 		    if(!err) {
 			try{
 			    queryCallback(results);
-			}catch(e){}
+			}catch(e){ /* swallowed on purpose: a failing handler must not stop the other notifications */ }
 		    }
 		    k();
 		});

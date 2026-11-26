@@ -549,7 +549,7 @@ Tree.prototype._moveKey = function (parent, i, position, callback) {
                 rchild.numberActives--;
             } else {
                 rchild.children[rchild.numberActives + 1] = rchild.children[rchild.numberActives];
-                for (var _i = rchild.numberActives; _i > 0; _i--) {
+                for (_i = rchild.numberActives; _i > 0; _i--) {
                     rchild.children[_i] = rchild.children[_i - 1];
                     rchild.keys[_i] = rchild.keys[_i - 1];
                 }
@@ -588,7 +588,6 @@ Tree.prototype._moveKey = function (parent, i, position, callback) {
  */
 Tree.prototype._mergeSiblings = function(parent,index,pos,callback) {
     var i,j;
-    var n1, n2;
     var tolookn1, tolookn2;
 
     if (index === (parent.numberActives)) {
@@ -686,8 +685,6 @@ Tree.prototype._deleteKeyFromNode = function (node, index, callback) {
     if (node.isLeaf === false) {
         return false;
     }
-
-    var key = node.keys[index];
 
     for (i = index; i < keysMax - 1; i++) {
         node.keys[i] = node.keys[i + 1];

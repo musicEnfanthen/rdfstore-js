@@ -4,27 +4,6 @@ var _ = require('./utils');
 var async = require('./utils');
 
 /**
- * A new query plan object
- * @param left
- * @param right
- * @param cost
- * @param identifier
- * @param allVars
- * @param joinVars
- * @constructor
- */
-var QueryPlan = function(left, right, cost, identifier, allVars, joinVars) {
-
-    this.left =  left;
-    this.right = right;
-    this.cost = cost;
-    this.i = identifier;
-    this.vars = allVars;
-    this.join = joinVars;
-
-};
-
-/**
  * Functions to build and execute query plans for a particular query
  * using a dynamic programming join algorithm.
  */
@@ -230,12 +209,12 @@ QueryPlanDPSize.createJoinTree = function(leftPlan, rightPlan) {
     var rightIds = rightPlan.i.split("_");
     var leftIds = leftPlan.i.split("_");
     var distinct = {};
-    for(var i=0; i<rightIds.length; i++) {
+    for(i=0; i<rightIds.length; i++) {
         if(rightIds[i] != "") {
             distinct[rightIds[i]] = true;
         }
     }
-    for(var i=0; i<leftIds.length; i++) {
+    for(i=0; i<leftIds.length; i++) {
         if(leftIds[i] != "") {
             distinct[leftIds[i]] = true;
         }
@@ -294,7 +273,6 @@ QueryPlanDPSize.executeAndBGPsDPSize = function(allBgps, dataset, queryEngine, e
         // this lambda function should be moved to its named function
 
         // Build bushy tree for this group
-        var costFactor = 1;
         queryEngine.computeCosts(bgps,env,function(bgps) {
             var bestPlans = {};
             var plans = {};
@@ -340,7 +318,7 @@ QueryPlanDPSize.executeAndBGPsDPSize = function(allBgps, dataset, queryEngine, e
                     var sr = s - sl; // size right plan
                     var leftPlans = sizes[''+sl] || [];
                     var rightPlans = sizes[''+sr] || [];
-                    for(var i=0; i<leftPlans.length; i++) {
+                    for(i=0; i<leftPlans.length; i++) {
                         for(var j=0; j<rightPlans.length; j++) {
                             if(leftPlans[i]===rightPlans[j])
                                 continue;
@@ -451,7 +429,7 @@ QueryPlanDPSize.executeBGPDatasets = function(bgp, dataset, queryEngine, queryEn
     } else if(bgp.graph.token === 'var') {
         // union through all named datasets
         var graphVar = bgp.graph.value;
-        var acum = [];
+        acum = [];
 
         async.eachSeries(dataset.named,
             function(graph, k){
@@ -592,7 +570,7 @@ QueryPlanDPSize.mergeBindings = function(bindingsA, bindingsB) {
     }
 
     // an unbound value on the right doesn't replace a bound one on the left
-    for(var variable in bindingsB) {
+    for(variable in bindingsB) {
         if(bindingsB[variable] != null || !(variable in merged)) {
             merged[variable] = bindingsB[variable];
         }
@@ -624,10 +602,10 @@ QueryPlanDPSize.joinBindings2 = function(bindingVars, bindingsA, bindingsB) {
         }
     }
 
-    for(var i=0; i<bindingsB.length; i++) {
+    for(i=0; i<bindingsB.length; i++) {
         bindings = bindingsB[i];
         tmp = acum;
-        for(var j=0; j<bindingVars.length; j++) {
+        for(j=0; j<bindingVars.length; j++) {
             variable = bindingVars[j];
             variableValue = bindings[variable];
 
