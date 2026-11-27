@@ -17,6 +17,9 @@ yarn test                    # parse-grammar + specs + e2e
 yarn build                   # parse-grammar + esbuild bundles -> dist/rdfstore{,_min}.js (IIFE) + dist/rdfstore{,_min}.mjs (ESM)
 yarn parse-grammar           # regenerate src/parser.js from grammar/sparql_query.grammar
 yarn lint                    # ESLint (no-undef, no-redeclare, no-var, prefer-const, no-unused-vars, no-empty) over src/, without parser.js and perftest/
+yarn format                  # Prettier --write over all JS/TS files (see .prettierignore)
+yarn format:check            # Prettier --check (not run in CI; the pre-commit hook formats)
+yarn husky:prepare           # once per clone: install the pre-commit hook (.husky/)
 yarn types                   # tsc check of types/rdfstore.d.ts against types/test.{mts,cts}
 ```
 
@@ -63,7 +66,7 @@ Every error reaches the caller's callback exactly once, as `callback(err)` ([spe
 - [src/rdf_loader.js](src/rdf_loader.js), [src/network_transport.js](src/network_transport.js), [src/rvn3_parser.js](src/rvn3_parser.js) (N3.js) and [src/jsonld_parser.js](src/jsonld_parser.js) (jsonld): load data by media type, either from a string, a remote URL or a local file.
 - [src/rdf_model.js](src/rdf_model.js): the RDF Interfaces API (`store.rdf`, graphs, nodes).
 
-**[src/utils.js](src/utils.js) is the core's own async/collection library.** Source files import it under the names `_` and `async` (`const async = require('./utils')`), not the real `lodash`/`async` packages. Those two packages are devDependencies used only by the specs. `eachSeries` and `whilst` iterate through a throttled `nextTick` that yields only every `yieldFrequency` calls (default 100), to avoid stack overflows. B-tree traversals in [src/quad_index.js](src/quad_index.js) and [src/btree.js](src/btree.js) depend on this. Without it, a full scan over ~100k triples threw `RangeError: Maximum call stack size exceeded` ([spec/large_dataset_spec.js](spec/large_dataset_spec.js) guards against that). New loops over large data should use these helpers, not direct synchronous recursion.
+**[src/utils.js](src/utils.js) is the core's own async/collection library.** Every module that uses it imports it once as `Utils` (`const Utils = require('./utils')`). The real `lodash`/`async` packages are devDependencies used only by the specs. `eachSeries` and `whilst` iterate through a throttled `nextTick` that yields only every `yieldFrequency` calls (default 100), to avoid stack overflows. B-tree traversals in [src/quad_index.js](src/quad_index.js) and [src/btree.js](src/btree.js) depend on this. Without it, a full scan over ~100k triples threw `RangeError: Maximum call stack size exceeded` ([spec/large_dataset_spec.js](spec/large_dataset_spec.js) guards against that). New loops over large data should use these helpers, not direct synchronous recursion.
 
 ## Tests
 
@@ -76,4 +79,5 @@ Every error reaches the caller's callback exactly once, as `callback(err)` ([spe
 - Git-flow branching: day-to-day work goes on `develop`, releases go through `release/vX.Y.Z-alpha.N` branches merged to `main` and tagged. PRs target `develop`.
 - Commit messages follow Conventional Commits (`build(deps): ...`, `test(e2e): ...`, `fix: ...`).
 - The maintainer reviews and commits each step personally. Do not commit; stop after each step and suggest a commit message.
+- Prettier ([.prettierrc.json](.prettierrc.json): width 120, 4 spaces, double quotes) decides the layout of all JS/TS files. The husky pre-commit hook runs it on staged files via lint-staged ([.lintstagedrc.json](.lintstagedrc.json)). CI does not check formatting, so a commit made without the hook can drift: run `yarn format` then. Markdown, JSON and YAML are not formatted.
 - Line endings are LF everywhere ([.gitattributes](.gitattributes) `* text=auto eol=lf`, [.editorconfig](.editorconfig)).
