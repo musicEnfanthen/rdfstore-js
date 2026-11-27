@@ -1,10 +1,9 @@
 var Store = require("../src/store");
-var N3Parser = require("../src/rvn3_parser").RVN3Parser;
 
 describe("Store", function () {
     it("Should pass integration test #1", function (done) {
         new Store.Store({ name: "test", overwrite: true }, function (err, store) {
-            expect(err == null);
+            expect(err).toBeNull();
             store.execute(
                 "INSERT DATA {  <http://example/book3> <http://example.com/vocab#title> <http://test.com/example> }",
                 function (err, result) {
@@ -524,7 +523,6 @@ describe("Store", function () {
         Store.create({ name: "test", overwrite: true }, function (err, store) {
             store.setPrefix("ex", "http://example.org/people/");
 
-            var graph = store.rdf.createGraph();
             var input = {
                 "@context": {
                     rdf: "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
@@ -550,39 +548,17 @@ describe("Store", function () {
         });
     });
 
-    /*
-    it("Should pass integration test Load2", function (done) {
-        Store.create(function (err, store) {
-            store.load('remote', 'http://dbpedia.org/resource/Tim_Berners-Lee', function (err, result) {
-                store.execute("SELECT ?o WHERE { ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?o }", function (err, results) {
-                    expect(err);
-                    expect(results.length > 0);
-                    done();
-                });
-                //store.node('http://dbpedia.org/resource/Tim_Berners-Lee', function(err, graph){
-                //    expect(err);
-                //    var tmp = graph.toArray();
-                //    var results = graph.filter(store.rdf.filters.type(store.rdf.resolve("foaf:Person")));
-                //    expect(results.toArray().length).toBe(1);
-                //    store.close(function(){ done() });
-                //});
-            });
-        });
-    });
-*/
     it("Should pass integration test Load3", function (done) {
         Store.create({ name: "test", overwrite: true }, function (err, store) {
             store.setPrefix("ex", "http://example.org/examples/");
 
-            var graph = store.rdf.createGraph();
-
-            input =
+            var input =
                 '_:a <http://test.com/p1> "test". _:a <http://test.com/p2> "test2". _:b <http://test.com/p1> "test" .';
             store.load("text/n3", input, "ex:test", function (err, results) {
                 store.execute(
                     "select ?s { GRAPH <http://example.org/examples/test> { ?s ?p ?o } }",
                     function (err, results) {
-                        expect(err);
+                        expect(err).toBeNull();
 
                         var blankIds = {};
 
@@ -590,10 +566,7 @@ describe("Store", function () {
                             var blankId = results[i].s.value;
                             blankIds[blankId] = true;
                         }
-                        var counter = 0;
-                        for (var p in blankIds) {
-                            counter++;
-                        }
+                        var counter = Object.keys(blankIds).length;
 
                         expect(counter).toBe(2);
                         store.close(function () {
@@ -609,9 +582,7 @@ describe("Store", function () {
         Store.create({ name: "test", overwrite: true }, function (err, store) {
             store.setPrefix("ex", "http://example.org/examples/");
 
-            var graph = store.rdf.createGraph();
-
-            input =
+            var input =
                 '_:a <http://test.com/p1> "test". _:a <http://test.com/p2> "test2". _:b <http://test.com/p1> "test" .';
             store.load("text/n3", input, { graph: "ex:test" }, function (err, results) {
                 store.execute(
@@ -625,10 +596,7 @@ describe("Store", function () {
                             var blankId = results[i].s.value;
                             blankIds[blankId] = true;
                         }
-                        var counter = 0;
-                        for (var p in blankIds) {
-                            counter++;
-                        }
+                        var counter = Object.keys(blankIds).length;
 
                         expect(counter).toBe(2);
                         store.close(function () {
@@ -644,9 +612,7 @@ describe("Store", function () {
         Store.create({ name: "test", overwrite: true }, function (err, store) {
             store.setPrefix("ex", "http://example.org/examples/");
 
-            var graph = store.rdf.createGraph();
-
-            input =
+            var input =
                 '<#me> <http://test.com/p1> "test". <http://test.com/something#me> <http://test.com/p2> "test2". _:b <http://test.com/p1> "test" .';
             store.load("text/n3", input, { baseURI: "http://test.com/something" }, function (err, results) {
                 store.execute("select ?s { ?s ?p ?o }", function (err, results) {
@@ -657,10 +623,7 @@ describe("Store", function () {
                         var blankId = results[i].s.value;
                         blankIds[blankId] = true;
                     }
-                    var counter = 0;
-                    for (var p in blankIds) {
-                        counter++;
-                    }
+                    var counter = Object.keys(blankIds).length;
 
                     expect(counter).toBe(2);
                     store.close(function () {
@@ -675,9 +638,7 @@ describe("Store", function () {
         Store.create({ name: "test", overwrite: true }, function (err, store) {
             store.setPrefix("ex", "http://example.org/examples/");
 
-            var graph = store.rdf.createGraph();
-
-            input =
+            var input =
                 '<#me> <http://test.com/p1> "test". <http://test.com/something#me> <http://test.com/p2> "test2". _:b <http://test.com/p1> "test" .';
             store.load(
                 "text/n3",
@@ -698,10 +659,7 @@ describe("Store", function () {
                                 var blankId = results[i].s.value;
                                 blankIds[blankId] = true;
                             }
-                            var counter = 0;
-                            for (var p in blankIds) {
-                                counter++;
-                            }
+                            var counter = Object.keys(blankIds).length;
 
                             expect(counter).toBe(2);
                             store.close(function () {
@@ -904,30 +862,6 @@ describe("Store", function () {
         });
     });
 
-    //it("Should pass integration test Export1", function(done) {
-    //    Store.create(function(err,store) {
-    //        store.load('remote', 'http://dbpedia.org/resource/Tim_Berners-Lee', 'http://test.com/graph-to-export', function(err, result) {
-    //            var graph = store.graph('http://test.com/graph-to-export', function(err, graph){
-    //                var n3 = "";
-    //
-    //                graph.forEach(function(triple) {
-    //                    n3 = n3 + triple.toString();
-    //                });
-    //
-    //                N3Parser.parser.parse(n3, function(err, result) {
-    //                    expect(err);
-    //                    expect(result.length > 0);
-    //
-    //                    // an easier way
-    //                    expect(graph.toNT() == n3);
-    //
-    //                    store.close(function(){ done(); });
-    //                });
-    //            });
-    //        });
-    //    });
-    //};
-
     it("Should pass integration test DefaultPrefixes", function (done) {
         new Store.Store({ name: "test", overwrite: true }, function (err, store) {
             store.execute(
@@ -1022,17 +956,14 @@ describe("Store", function () {
                          }";
 
                 store.execute(query, function (err, graph) {
-                    expect(err);
-                    var numBlankSubjects = 0;
+                    expect(err).toBeNull();
                     var distinctBlankSubjects = {};
-                    var foundUris = false;
                     var triples = graph.toArray();
                     var triple;
                     expect(triples.length).toBe(4);
                     for (var i = 0; i < triples.length; i++) {
                         triple = triples[i];
                         if (triple.subject.interfaceName === "BlankNode") {
-                            numBlankSubjects++;
                             distinctBlankSubjects[triple.subject.bnodeId] = true;
                         } else {
                             expect(triple.subject.valueOf()).toBe("http://www.example.com/resource/12645");
@@ -1041,10 +972,7 @@ describe("Store", function () {
                         }
                     }
 
-                    var numDistinctBlankSujects = 0;
-                    for (var p in distinctBlankSubjects) {
-                        numDistinctBlankSujects++;
-                    }
+                    var numDistinctBlankSujects = Object.keys(distinctBlankSubjects).length;
 
                     expect(numDistinctBlankSujects).toBe(1);
                     store.close(function () {
@@ -1137,13 +1065,13 @@ describe("Store", function () {
             store.load("application/ld+json", input, function (err) {
                 store.execute("SELECT * { ?s ?p ?o }", function (err, results) {
                     jsonmedia = results.length;
-                    expect(jsonmedia > 0);
+                    expect(jsonmedia).toBeGreaterThan(0);
 
                     new Store.Store({ name: "test", overwrite: true }, function (err, store) {
                         store.load("application/json", input, function (err) {
                             store.execute("SELECT * { ?s ?p ?o }", function (err, results) {
                                 jsonldmedia = results.length;
-                                expect(jsonldmedia > 0);
+                                expect(jsonldmedia).toBeGreaterThan(0);
 
                                 expect(jsonldmedia).toBe(jsonmedia);
                                 done();
@@ -1165,7 +1093,6 @@ describe("Store", function () {
                  test:C test:prop 1.\
                  test:D test:prop 3.",
                 function (err) {
-                    var invoked = false;
                     store.registerCustomFunction("my_addition", function (engine, args) {
                         var v1 = engine.effectiveTypeValue(args[0]);
                         var v2 = engine.effectiveTypeValue(args[1]);
@@ -1176,7 +1103,7 @@ describe("Store", function () {
                         function (err, results) {
                             expect(results.length).toBe(3);
                             for (var i = 0; i < results.length; i++) {
-                                expect(parseInt(results[i].v1.value) + parseInt(results[i].v2.value) < 5);
+                                expect(parseInt(results[i].v1.value) + parseInt(results[i].v2.value)).toBeLessThan(5);
                             }
                             done();
                         },
@@ -1196,7 +1123,6 @@ describe("Store", function () {
                  test:C test:prop 1.\
                  test:D test:prop 3.",
                 function (err) {
-                    var invoked = false;
                     store.registerCustomFunction("http://test.com/my_addition", function (engine, args) {
                         var v1 = engine.effectiveTypeValue(args[0]);
                         var v2 = engine.effectiveTypeValue(args[1]);
@@ -1207,7 +1133,7 @@ describe("Store", function () {
                         function (err, results) {
                             expect(results.length).toBe(3);
                             for (var i = 0; i < results.length; i++) {
-                                expect(parseInt(results[i].v1.value) + parseInt(results[i].v2.value) < 5);
+                                expect(parseInt(results[i].v1.value) + parseInt(results[i].v2.value)).toBeLessThan(5);
                             }
                             done();
                         },
@@ -1227,7 +1153,6 @@ describe("Store", function () {
                  test:C test:prop 1.\
                  test:D test:prop 3.",
                 function (err) {
-                    var invoked = false;
                     store.registerCustomFunction("http://test.com/my_addition2", function (engine, args) {
                         var v1 = engine.effectiveTypeValue(args[0]);
                         var v2 = engine.effectiveTypeValue(args[1]);
@@ -1238,7 +1163,7 @@ describe("Store", function () {
                         function (err, results) {
                             expect(results.length).toBe(3);
                             for (var i = 0; i < results.length; i++) {
-                                expect(parseInt(results[i].v1.value) + parseInt(results[i].v2.value) < 5);
+                                expect(parseInt(results[i].v1.value) + parseInt(results[i].v2.value)).toBeLessThan(5);
                             }
                             done();
                         },
@@ -1470,7 +1395,8 @@ describe("Store", function () {
              FILTER (?s=<http://test.com/A>)
              } `;
 
-                store.execute(query, function (success, results) {
+                store.execute(query, function (err, results) {
+                    expect(err).toBeNull();
                     expect(results.length).toBe(2);
                     done();
                 });
@@ -1488,9 +1414,7 @@ describe("Store", function () {
                  test:C test:prop 1.\
                  test:D test:prop 3.",
                 function (err) {
-                    var invoked = false;
                     store.registerCustomFunction("http://test.com/my_default_value", function (engine, args) {
-                        var v1 = engine.effectiveTypeValue(args[0]);
                         return {
                             token: "literal",
                             value: "test_value",
@@ -1545,42 +1469,3 @@ describe("Store", function () {
         }
     });
 });
-
-/*
- it("Should pass integration test Load5", function(done) {
- Store.create({name:'test', overwrite:true},function(err,store) {
-
- store.setPrefix("ex", "http://example.org/people/");
-
- var graph = store.rdf.createGraph();
- var input = '<?xml version="1.0" encoding="UTF-8"?>\n\
- <rdf:RDF\n\
- xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">\n\
- <rdf:Description rdf:about="http://purl.bioontology.org/ontology/RXNORM/309054">\n\
- <rdf:type rdf:resource="http://smartplatforms.org/terms#Code"/>\n\
- <rdf:type rdf:resource="http://smartplatforms.org/terms/codes/RxNorm_Semantic"/>\n\
- <title xmlns="http://purl.org/dc/terms/">Cefdinir 25 MG/ML Oral Suspension</title>\n\
- </rdf:Description>\n\
- </rdf:RDF>';
-
- store.load("application/rdf+xml", input, function(err, results){
- console.log("RESULTS...")
- console.log(results);
-
- store.execute("SELECT * { ?s  ?p  ?o }", function(err, results){
- console.log(results);
- done();
- });
-
- //  store.node("http://purl.bioontology.org/ontology/RXNORM/309054",  function(err, graph) {
- //      console.log(graph);
- //      console.log(graph.toArray());
- //      expect(graph.toArray().length).toBe(3);
- //      done();
- //  });
-
- });
- });
- });
-
- */

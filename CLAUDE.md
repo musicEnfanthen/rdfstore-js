@@ -16,7 +16,7 @@ yarn e2e                     # all e2e scripts in e2e/ (basic, comprehensive, re
 yarn test                    # parse-grammar + specs + e2e
 yarn build                   # parse-grammar + esbuild bundles -> dist/rdfstore{,_min}.js (IIFE) + dist/rdfstore{,_min}.mjs (ESM)
 yarn parse-grammar           # regenerate src/parser.js from grammar/sparql_query.grammar
-yarn lint                    # ESLint (no-undef, no-redeclare, no-var, prefer-const, no-unused-vars, no-empty) over src/, without parser.js and perftest/
+yarn lint                    # ESLint (no-undef, no-redeclare, no-var, prefer-const, no-unused-vars, no-empty) over src/ (without parser.js and perftest/) and spec/ (without no-var, prefer-const)
 yarn format                  # Prettier --write over all JS/TS files (see .prettierignore)
 yarn format:check            # Prettier --check (not run in CI; the pre-commit hook formats)
 yarn husky:prepare           # once per clone: install the pre-commit hook (.husky/)
@@ -50,7 +50,7 @@ Every error reaches the caller's callback exactly once, as `callback(err)` ([spe
 
 `store.promises` and `rdfstore.promises.create` ([src/store_promises.js](src/store_promises.js)) wrap the callback API with `Utils.toPromise`. Each wrapper calls the store method with the exact argument count of the intended form, because the methods dispatch on `arguments.length`. The core stays callback-based.
 
-**Every `src/` module is strict mode** (`"use strict";` at the top), so the CommonJS entry behaves like the ES module bundle. Declare every name with `const`, or `let` if it is reassigned (`var` is not allowed): an implicit global throws in strict mode. [eslint.config.mjs](eslint.config.mjs) enables `no-undef` to catch this statically, including on paths the specs never run, plus `no-redeclare`, `no-var`, `prefer-const`, `no-unused-vars` (skips parameters and `catch` bindings) and `no-empty` (an intentionally empty block gets a comment). ESLint cannot see `this` inside plain callbacks, which is `undefined` in strict mode: capture `const that = this;` in the method instead.
+**Every `src/` module is strict mode** (`"use strict";` at the top), so the CommonJS entry behaves like the ES module bundle. Declare every name with `const`, or `let` if it is reassigned (`var` is not allowed): an implicit global throws in strict mode. [eslint.config.mjs](eslint.config.mjs) enables `no-undef` to catch this statically, including on paths the specs never run, plus `no-redeclare`, `no-var`, `prefer-const`, `no-unused-vars` (skips parameters and `catch` bindings) and `no-empty` (an intentionally empty block gets a comment). The specs are linted with the same rules except `no-var` and `prefer-const`, and with the Jasmine globals. ESLint cannot see `this` inside plain callbacks, which is `undefined` in strict mode: capture `const that = this;` in the method instead.
 
 **Layering** (from the public API down to storage):
 
@@ -72,6 +72,7 @@ Every error reaches the caller's callback exactly once, as `callback(err)` ([spe
 
 - Jasmine config: [spec/support/jasmine.json](spec/support/jasmine.json). It sets `random: false`, but Jasmine 7 still runs the specs in random order (the output prints the seed). Pass `--random=false` or `--seed=<n>` to reproduce an order-dependent failure.
 - [spec/w3c_spec.js](spec/w3c_spec.js) runs the W3C SPARQL 1.1 syntax suites (`syntax-query`, `syntax-update-1`, `syntax-update-2` in `spec/w3c/`) via [spec/w3c_suite_helper.js](spec/w3c_suite_helper.js). The helper supports only syntax tests. It defines one spec per approved test and checks each query with the parser and the AQT (what `execute` does before evaluating). Tests that don't pass yet are listed in its `KNOWN_EXCEPTIONS` and run as pending. A listed test that passes fails, so that it gets removed from the list. Use them to check parser and grammar changes. For SPARQL evaluation cases, take individual tests from [w3c/rdf-tests](https://github.com/w3c/rdf-tests) and turn them into regular specs.
+- [spec/helpers/engine.js](spec/helpers/engine.js) has `newEngine([options], callback)`, which builds an in-memory `QueryEngine` (Lexicon + QuadBackend, `treeOrder` 2 by default), and `countLexiconTerms(lexicon, callback)`. Jasmine loads `spec/helpers/` before the specs, so the file only exports.
 - Specs import the real `async` package (v3), whose `whilst` expects an async test function: `function(cb){ cb(null, cond); }`. A test that returns a boolean never calls back, and the spec times out.
 
 ## Repo conventions

@@ -1,10 +1,11 @@
 var RVN3Parser = require("../src/rvn3_parser").RVN3Parser;
+var fs = require("fs");
 var path = require("path");
 
 // Auxiliary functions
 var compare = function (compa, compb) {
     if (compa == null) {
-        expect(compb == null);
+        expect(compb == null).toBe(true);
     } else if (compa.token && compa.token === "uri") {
         expect(compa.token).toBe(compb.token);
         expect(compa.value).toBe(compb.value);
@@ -13,15 +14,11 @@ var compare = function (compa, compb) {
     } else if (compa.blank) {
         expect(compa.blank).toBe(compb.blank);
     } else {
-        expect(false);
+        fail("unexpected term " + JSON.stringify(compa));
     }
 };
 
 var compareTriple = function (ta, tb) {
-    //console.log("TA");
-    //console.log(ta);
-    //console.log("TB");
-    //console.log(tb);
     compare(ta.subject, tb.subject);
     compare(ta.predicate, tb.predicate);
     compare(ta.object, tb.object);
@@ -32,13 +29,7 @@ var shouldParse = function (input, output, done, options) {
     options = options || {};
     RVN3Parser.parser.resetBlankNodeIds();
     RVN3Parser.parser.parse(input, options, function (err, result) {
-        //console.log("PARSED? "+success);
-        //console.log("------------");
-        //console.log(input);
-        //console.log("------------");
-        //console.log(result);
-        //console.log("!!!!!!!!!!!!");
-        expect(err != true);
+        expect(err).toBeNull();
         expect(result.constructor).toBe(output.constructor);
         expect(result.length).toBe(output.length);
         for (var i = 0; i < result.length; i++) {
@@ -50,12 +41,11 @@ var shouldParse = function (input, output, done, options) {
 
 describe("RVN3Parser#parse", function () {
     it("Should be able to parse N3 data with a provided graph", function (done) {
-        fs = require("fs");
         fs.readFile(path.resolve(__dirname, "data/sp2b_10k.n3"), function (err, data) {
-            if (err) throw err;
+            if (err) return done.fail(err);
             data = data.toString("utf8");
             RVN3Parser.parser.parse(data, "http://test.com/graph1", {}, function (err, result) {
-                expect(err == null);
+                expect(err).toBeNull();
                 expect(result.length).toBe(43);
 
                 for (var i = 0; i < result.length; i++) {
@@ -67,12 +57,11 @@ describe("RVN3Parser#parse", function () {
     });
 
     it("Should be able to parse N3 data with a null graph", function (done) {
-        fs = require("fs");
         fs.readFile(path.resolve(__dirname, "data/sp2b_10k.n3"), function (err, data) {
-            if (err) throw err;
+            if (err) return done.fail(err);
             data = data.toString("utf8");
             RVN3Parser.parser.parse(data, {}, function (err, result) {
-                expect(err == null);
+                expect(err).toBeNull();
                 expect(result.length).toBe(43);
 
                 for (var i = 0; i < result.length; i++) {
@@ -84,11 +73,11 @@ describe("RVN3Parser#parse", function () {
     });
 
     it("Should parse N3 data with comments", function (done) {
-        fs = require("fs");
         fs.readFile(path.resolve(__dirname, "./data/with_comments.n3"), function (err, data) {
-            if (err) throw err;
+            if (err) return done.fail(err);
             data = data.toString("utf8");
-            var result = RVN3Parser.parser.parse(data, {}, function (err, result) {
+            RVN3Parser.parser.parse(data, {}, function (err, result) {
+                expect(err).toBeNull();
                 expect(result.length).toBe(9);
                 done();
             });
