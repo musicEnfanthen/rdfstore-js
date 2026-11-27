@@ -54,38 +54,6 @@ QueryPlanDPSize.connected = function(leftPlan, rightPlan) {
     return false;
 };
 
-const intersection = function(arr1,arr2) {
-    const acc = {};
-    for(let i=0; i<arr1.lenght; i++) {
-        acc[arr1[i]] = 1;
-    }
-    for(let i=0; i<arr2.length; i++) {
-        let val = acc[arr2[i]] || 0;
-        val++;
-        acc[arr2[i]] = val;
-    }
-    const intersect = [];
-    for(const p in acc) {
-        if(acc[p] == 2)
-        intersect.push(acc[p]);
-    }
-
-    return intersect;
-};
-
-/**
- * Computes the intersection for the bariables of two BGPs
- * @param bgpa
- * @param bgpb
- * @returns {*}
- */
-QueryPlanDPSize.variablesIntersectionBGP = function(bgpa, bgpb) {
-    return intersection(
-        QueryPlanDPSize.variablesInBGP(bgpa),
-        QueryPlanDPSize.variablesInBGP(bgpb)
-    );
-};
-
 /**
  * All BGPs sharing variables are grouped together.
  */
@@ -549,21 +517,6 @@ QueryPlanDPSize.areCompatibleBindings = function(bindingsA, bindingsB) {
     return true;
 };
 
-//QueryPlanDPSize.areCompatibleBindingsStrict = function(bindingsA, bindingsB) {
-//    var foundSome = false;
-//    for(var variable in bindingsA) {
-// 	if(bindingsB[variable]!=null && (bindingsB[variable] != bindingsA[variable])) {
-// 	    return false;
-// 	} else if(bindingsB[variable] == bindingsA[variable]){
-// 	    foundSome = true;
-// 	}
-//    }
-//
-//    return foundSome;
-//};
-
-
-
 QueryPlanDPSize.mergeBindings = function(bindingsA, bindingsB) {
     const merged = {};
     for(const variable in bindingsA) {
@@ -729,33 +682,6 @@ QueryPlanDPSize.augmentMissingBindings = function(bindingA, bindingB) {
     }
     return bindingA;
 };
-
-/*
- QueryPlanDPSize.diff = function(bindingsA, biundingsb) {
- var result = [];
-
- for(var i=0; i< bindingsA.length; i++) {
- var bindingA = bindingsA[i];
- var matched = false;
- for(var j=0; j<bindingsB.length; j++) {
- var bindingB = bindingsB[j];
- if(QueryPlanDPSize.areCompatibleBindings(bindingA, bindingB)){
- matched = true;
- result.push(QueryPlanDPSize.mergeBindings(bindingA, bindingB));
- }
- }
- if(matched === false) {
- // missing bindings must be present for further processing
- // e.g. filtering by not present value (see DAWG tests
- // bev-6)
- QueryPlanDPSize.augmentMissingBindings(bindingA, bindingB);
- result.push(bindingA);
- }
- }
-
- return result;
- };
- */
 
 QueryPlanDPSize.leftOuterJoinBindings = function(bindingsA, bindingsB, leftSolutions) {
     return QueryPlanDPSize.hashJoinBindings(bindingsA, bindingsB, true, leftSolutions);

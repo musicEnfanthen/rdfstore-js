@@ -181,60 +181,6 @@ QueryFilters.preprocessExistentialFilters = function(filters, bindings, queryEng
     });
 };
 
-QueryFilters.boundVars = function(filterExpr) {
-    if(filterExpr.expressionType != null) {
-        const expressionType = filterExpr.expressionType;
-        if(expressionType == 'relationalexpression') {
-            const op1 = filterExpr.op1;
-            const op2 = filterExpr.op2;
-            return QueryFilters.boundVars(op1)+QueryFilters.boundVars(op2);
-        } else if(expressionType == 'conditionalor' || expressionType == 'conditionaland') {
-            let vars = [];
-            for(let i=0; i< filterExpr.operands; i++) {
-                vars = vars.concat(QueryFilters.boundVars(filterExpr.operands[i]));
-            }
-            return vars;
-        } else if(expressionType == 'builtincall') {
-            if(filterExpr.args == null) {
-                return [];
-            } else {
-                let acum = [];
-                for(let i=0; i< filterExpr.args.length; i++) {
-                    acum = acum.concat(QueryFilters.boundVars(filterExpr.args[i]));
-                }
-                return acum;
-            }
-        } else if(expressionType == 'multiplicativeexpression') {
-            let acum = QueryFilters.boundVars(filterExpr.factor);
-            for(let i=0; i<filterExpr.factors.length; i++) {
-                acum = acum.concat(QueryFilters.boundVars(filterExpr.factors[i].expression));
-            }
-            return acum;
-        } else if(expressionType == 'additiveexpression') {
-            let acum = QueryFilters.boundVars(filterExpr.summand);
-            for(let i=0; i<filterExpr.summands.length; i++) {
-                acum = acum.concat(QueryFilters.boundVars(filterExpr.summands[i].expression));
-            }
-
-            return acum;
-        } else if(expressionType == 'regex') {
-            const acum = QueryFilters.boundVars(filterExpr.expression1);
-            return acum.concat(QueryFilters.boundVars(filterExpr.expression2));
-        } else if(expressionType == 'unaryexpression') {
-            return QueryFilters.boundVars(filterExpr.expression);
-        } else if(expressionType == 'atomic') {
-            if(filterExpr.primaryexpression == 'var') {
-                return [filterExpr.value];
-            } else {
-                // numeric, literal, etc...
-                return [];
-            }
-        }
-    } else {
-        throw("Cannot find bound expressions in a no expression token");
-    }
-};
-
 QueryFilters.run = function(filterExpr, bindings, nullifyFilters, dataset, env, queryEngine, callback) {
     queryEngine.copyDenormalizedBindings(bindings, env.outCache, function(denormBindings){
         const filteredBindings = [];
@@ -243,10 +189,6 @@ QueryFilters.run = function(filterExpr, bindings, nullifyFilters, dataset, env, 
             // ebv can be directly a RDFTerm (e.g. atomic expression in filter)
             // this additional call to ebv will return -> true/false/error
             const ebv = QueryFilters.ebv(QueryFilters.runFilter(filterExpr, thisDenormBindings, queryEngine, dataset, env));
-            //console.log("EBV:")
-            //console.log(ebv)
-            //console.log("FOR:")
-            //console.log(thisDenormBindings)
             if(QueryFilters.isEbvError(ebv)) {
                 // error
                 if(nullifyFilters) {
@@ -278,9 +220,6 @@ QueryFilters.collect = function(filterExpr, bindings, dataset, env, queryEngine,
         }
         return callback(filteredBindings);
     });
-};
-
-QueryFilters.runDistinct = function(projectedBindings, projectionVariables) {
 };
 
 // A key for a whole solution, for COUNT(DISTINCT *)
@@ -433,8 +372,6 @@ QueryFilters.runFilter = function(filterExpr, bindings, queryEngine, dataset, en
 };
 
 QueryFilters.runExpression = function(filterExpr, bindings, queryEngine, dataset, env) {
-    //console.log("RUNNING FILTER");
-    //console.log(filterExpr);
     if(filterExpr.expressionType != null) {
         const expressionType = filterExpr.expressionType;
         if(expressionType == 'relationalexpression') {
@@ -465,7 +402,6 @@ QueryFilters.runExpression = function(filterExpr, bindings, queryEngine, dataset
                 return bindings[filterExpr.value.value];
             } else {
                 // numeric, literal, etc...
-                //return queryEngine.filterExpr.value;
                 if(typeof(filterExpr.value) != 'object') {
                     return filterExpr.value
                 } else {
@@ -728,8 +664,6 @@ QueryFilters.ebvError = function() {
 QueryFilters.isEbvError = function(term) {
     if(typeof(term) == 'object' && term != null) {
         return term.type === "https://github.com/antoniogarrote/js-tools/types#error";
-//    } else if(term == null) {
-//        return true;
     } else {
         return false;
     }
