@@ -43,11 +43,20 @@ Callbacks.CallbacksBackend = function () {
     this.callbackCounter = 0;
     this.callbacksMap = {};
     this.callbacksInverseMap = new Map();
+    // per subscription id: the pattern and its OIDs, whose lexicon references unsubscribe gives back
+    this.callbackTerms = {};
+    // per listener whose subscribe is still normalizing its pattern: whether it was unsubscribed meanwhile
+    this.pendingSubscriptions = new Map();
+    // patterns of stopped listeners and queries; the next update or load releases their lexicon references
+    // (see releasePendingTerms), so that releasing never runs alongside an operation that registers terms
+    this.termsToRelease = [];
 
     this.queryCounter = 0;
     this.queriesMap = {};
     this.queriesCallbacksMap = {};
     this.queriesInverseMap = {};
+    // per observed query id: the patterns and their OIDs, whose lexicon references stopObservingQuery gives back
+    this.queriesTerms = {};
 
     for (let i = 0; i < this.indices.length; i++) {
         const indexKey = this.indices[i];
@@ -207,7 +216,15 @@ Callbacks.CallbacksBackend.prototype.subscribe = function (s, p, o, g, callback,
     const queryEnv = { blanks: {}, outCache: {} };
     this.engine.registerNsInEnvironment(null, queryEnv);
     const that = this;
+    const pending = { cancelled: false };
+    this.pendingSubscriptions.set(callback, pending);
     this.engine.normalizeQuad(quad, queryEnv, true, function (normalized) {
+        that.pendingSubscriptions.delete(callback);
+        if (pending.cancelled) {
+            that.termsToRelease.push({ quad: quad, key: normalized });
+            if (doneCallback != null) doneCallback(true);
+            return;
+        }
         const pattern = new Pattern(normalized);
         const indexKey = that._indexForPattern(pattern);
         const indexOrder = that.componentOrders[indexKey];
@@ -223,6 +240,7 @@ Callbacks.CallbacksBackend.prototype.subscribe = function (s, p, o, g, callback,
                 index["_"].push(that.callbackCounter);
                 that.callbacksMap[that.callbackCounter] = callback;
                 that.callbacksInverseMap.set(callback, that.callbackCounter);
+                that.callbackTerms[that.callbackCounter] = { quad: quad, key: normalized };
                 break;
             } else {
                 if (i === indexOrder.length - 1) {
@@ -231,6 +249,7 @@ Callbacks.CallbacksBackend.prototype.subscribe = function (s, p, o, g, callback,
                     index[quadValue]["_"].push(that.callbackCounter);
                     that.callbacksMap[that.callbackCounter] = callback;
                     that.callbacksInverseMap.set(callback, that.callbackCounter);
+                    that.callbackTerms[that.callbackCounter] = { quad: quad, key: normalized };
                 } else {
                     index[quadValue] = index[quadValue] || {};
                     index = index[quadValue];
@@ -246,7 +265,32 @@ Callbacks.CallbacksBackend.prototype.unsubscribe = function (callback) {
     if (id != null) {
         this.callbacksInverseMap.delete(callback);
         delete this.callbacksMap[id];
+        if (this.callbackTerms[id] != null) this.termsToRelease.push(this.callbackTerms[id]);
+        delete this.callbackTerms[id];
+    } else if (this.pendingSubscriptions.has(callback)) {
+        // subscribe has not registered it yet: it drops the subscription when it does
+        this.pendingSubscriptions.get(callback).cancelled = true;
     }
+};
+
+// Releases the lexicon references of stopped listeners and queries, then calls callback. Called at the start
+// of every update and load, inside it: B-tree changes must not interleave with another operation's.
+Callbacks.CallbacksBackend.prototype.releasePendingTerms = function (callback) {
+    const terms = this.termsToRelease;
+    if (terms.length === 0) return callback();
+    this.termsToRelease = [];
+    const lexicon = this.engine.lexicon;
+    Utils.eachSeries(
+        terms,
+        function (entry, k) {
+            lexicon.release(entry.quad, entry.key, function () {
+                k();
+            });
+        },
+        function () {
+            callback();
+        },
+    );
 };
 
 Callbacks.CallbacksBackend.prototype._tokenizeComponents = function (s, p, o, g) {
@@ -413,6 +457,15 @@ Callbacks.CallbacksBackend.prototype.observeQuery = function (query, callback, e
             }
 
             that.engine.normalizeQuad(quad, queryEnv, true, function (normalized) {
+                if (that.queriesMap[counter] != null) {
+                    (that.queriesTerms[counter] = that.queriesTerms[counter] || []).push({
+                        quad: quad,
+                        key: normalized,
+                    });
+                } else {
+                    // stopped while its patterns were still being registered
+                    that.termsToRelease.push({ quad: quad, key: normalized });
+                }
                 const pattern = new Pattern(normalized);
                 const indexKey = that._indexForPattern(pattern);
                 const indexOrder = that.componentOrders[indexKey];
@@ -463,6 +516,8 @@ Callbacks.CallbacksBackend.prototype.stopObservingQuery = function (query) {
         for (let i = 0; i < ids.length; i++) {
             delete this.queriesMap[ids[i]];
             delete this.queriesCallbacksMap[ids[i]];
+            Array.prototype.push.apply(this.termsToRelease, this.queriesTerms[ids[i]] || []);
+            delete this.queriesTerms[ids[i]];
         }
         this.queriesList = Utils.reject(this.queriesList, function (queryId) {
             return Utils.include(ids, queryId);

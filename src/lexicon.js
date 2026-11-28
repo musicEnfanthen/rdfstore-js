@@ -414,12 +414,46 @@ Lexicon.prototype.unregister = function (quad, key, callback) {
 };
 
 /**
+ * Releases the references to a quad's terms that registering it just added, when no quad was added
+ * (a duplicate) or one more after a quad was removed.
+ * @param quad
+ * @param key
+ * @param callback
+ */
+Lexicon.prototype.release = function (quad, key, callback) {
+    this.unregister(quad, key, callback);
+};
+
+/**
  * Removes a blank node that no quad uses anymore.
  * @param oid
  * @param callback
  */
 Lexicon.prototype.unregisterBlank = function (oid, callback) {
     this._unregisterTerm("blank", oid, callback);
+};
+
+/**
+ * Drops one reference to the URI or literal with this OID, and removes the term once nothing uses it.
+ * @private
+ */
+Lexicon.prototype._releaseTerm = function (values, oids, oidStr, oid, removeMore, callback) {
+    oids.search(oidStr, function (value) {
+        if (value == null) return callback();
+        values.search(value, function (oidData) {
+            if (oidData == null || "" + oidData[0] !== "" + oid) return callback();
+            if (oidData[1] > 0) {
+                oidData[1]--;
+                return callback();
+            }
+            values.delete(value, function () {
+                oids.delete(oidStr, function () {
+                    if (removeMore == null) return callback();
+                    removeMore(callback);
+                });
+            });
+        });
+    });
 };
 
 /**
@@ -433,79 +467,24 @@ Lexicon.prototype._unregisterTerm = function (kind, oid, callback) {
     const that = this;
     if (kind === "uri") {
         if (oid != this.defaultGraphOid) {
-            const oidStr = "u" + oid;
-            that.oidUris.search(oidStr, function (uri) {
-                that.uris.search(uri, function (oidData) {
-                    const counter = oidData[1];
-                    if ("" + oidData[0] === "" + oid) {
-                        if (counter === 0) {
-                            Utils.seq(
-                                function (k) {
-                                    that.oidUris.delete(oidStr, function () {
-                                        k();
-                                    });
-                                },
-                                function (k) {
-                                    that.uris.delete(uri, function () {
-                                        k();
-                                    });
-                                },
-                                function (k) {
-                                    // delete the graph oid from known graphs
-                                    // in case this URI is a graph identifier
-                                    that.knownGraphs.delete(oid, function () {
-                                        k();
-                                    });
-                                },
-                            )(function () {
-                                callback();
-                            });
-                        } else {
-                            that.uris.insert(uri, [oid, counter - 1], function () {
-                                callback();
-                            });
-                        }
-                    } else {
-                        callback();
-                    }
-                });
-            });
+            this._releaseTerm(
+                this.uris,
+                this.oidUris,
+                "u" + oid,
+                oid,
+                function (k) {
+                    // in case this URI is a graph identifier
+                    that.knownGraphs.delete(oid, function () {
+                        k();
+                    });
+                },
+                callback,
+            );
         } else {
             callback();
         }
     } else if (kind === "literal") {
-        this.oidCounter++;
-        const oidStr = "l" + oid;
-
-        that.oidLiterals.search(oidStr, function (literal) {
-            that.literals.search(literal, function (oidData) {
-                const counter = oidData[1];
-                if ("" + oidData[0] === "" + oid) {
-                    if (counter === 0) {
-                        Utils.seq(
-                            function (k) {
-                                that.oidLiterals.delete(oidStr, function () {
-                                    k();
-                                });
-                            },
-                            function (k) {
-                                that.literals.delete(literal, function () {
-                                    k();
-                                });
-                            },
-                        )(function () {
-                            callback();
-                        });
-                    } else {
-                        that.literals.insert(literal, [oid, counter - 1], function () {
-                            callback();
-                        });
-                    }
-                } else {
-                    callback();
-                }
-            });
-        });
+        this._releaseTerm(this.literals, this.oidLiterals, "l" + oid, oid, null, callback);
     } else if (kind === "blank") {
         that.oidBlanks.delete("" + oid, function () {
             callback();

@@ -603,17 +603,11 @@ QueryEngine.prototype.normalizeQuad = function (quad, queryEnv, shouldIndex, cal
                 graph = 0; // default graph
                 k();
             } else {
-                const graphUriValue = Utils.lexicalFormBaseUri(quad.graph, queryEnv);
+                // the graph is registered as a known graph only once a quad is added to it (_executeQuadInsert)
                 that.normalizeTerm(quad.graph, queryEnv, shouldIndex, function (oid) {
                     if (oid != null) {
                         graph = oid;
-                        if (shouldIndex === true && quad.graph.token != "var") {
-                            that.lexicon.registerGraph(oid, graphUriValue, function () {
-                                k();
-                            });
-                        } else {
-                            k();
-                        }
+                        k();
                     } else {
                         error = true;
                         k();
@@ -1628,7 +1622,15 @@ QueryEngine.prototype.executeUpdate = function (syntaxTree, callback) {
     const prologues = syntaxTree.prologues || [prologue];
     this.registerNsInEnvironment(prologues[0], queryEnv);
 
-    // operations separated by ';' run one after the other; the first error stops the request
+    // first the terms of stopped subscriptions and observed queries, inside this update and not alongside it
+    this.callbacksBackend.releasePendingTerms(function () {
+        that._executeUpdateUnits(units, prologues, queryEnv, callback);
+    });
+};
+
+// operations separated by ';' run one after the other; the first error stops the request
+QueryEngine.prototype._executeUpdateUnits = function (units, prologues, queryEnv, callback) {
+    const that = this;
     let lastResult;
     let index = 0;
     Utils.eachSeries(
@@ -1709,8 +1711,6 @@ QueryEngine.prototype._executeUpdateUnit = function (aqt, queryEnv, callback) {
 
 // Stores parsed quads; calls back (err) or (null, number of new quads).
 QueryEngine.prototype.batchLoad = function (quads, callback) {
-    let counter = 0;
-    const blanks = {};
     const that = this;
 
     // check every quad first, so that a broken one does not leave the batch half stored
@@ -1722,6 +1722,17 @@ QueryEngine.prototype.batchLoad = function (quads, callback) {
             }
         }
     }
+    // first the terms of stopped subscriptions and observed queries, inside this load and not alongside it
+    this.callbacksBackend.releasePendingTerms(function () {
+        that._batchLoadQuads(quads, callback);
+    });
+};
+
+QueryEngine.prototype._batchLoadQuads = function (quads, callback) {
+    let counter = 0;
+    const blanks = {};
+    const that = this;
+    const components = ["subject", "predicate", "object", "graph"];
 
     if (this.eventsOnBatchLoad) this.callbacksBackend.startGraphModification();
 
@@ -1812,7 +1823,10 @@ QueryEngine.prototype.batchLoad = function (quads, callback) {
                                 k();
                             });
                         } else {
-                            k();
+                            // a duplicate: release the references registerComponent added
+                            that.lexicon.release(originalQuad, quad, function () {
+                                k();
+                            });
                         }
                     });
                 },
@@ -2080,11 +2094,22 @@ QueryEngine.prototype._executeQuadInsert = function (quad, queryEnv, callback) {
                 const key = new QuadIndex.NodeKey(normalized);
                 that.backend.search(key, function (found) {
                     if (found === true) {
-                        k();
+                        // no quad added: release the references normalizeQuad registered
+                        that.lexicon.release(quad, normalized, function () {
+                            k();
+                        });
                     } else {
                         that.backend.index(key, function () {
-                            that.callbacksBackend.nextGraphModification(Callbacks.added, [quad, normalized]);
-                            k();
+                            const announce = function () {
+                                that.callbacksBackend.nextGraphModification(Callbacks.added, [quad, normalized]);
+                                k();
+                            };
+                            if (quad.graph != null && quad.graph.token === "uri") {
+                                const graphUri = Utils.lexicalFormBaseUri(quad.graph, queryEnv);
+                                that.lexicon.registerGraph(normalized.graph, graphUri, announce);
+                            } else {
+                                announce();
+                            }
                         });
                     }
                 });
@@ -2140,11 +2165,14 @@ QueryEngine.prototype._executeQuadDelete = function (quad, queryEnv, deletedBlan
         },
         function (k) {
             if (error === false) {
-                // also for a missing quad: normalizeQuad registered its terms. Blank nodes are left to _releaseBlanks,
-                // other quads may still use them
+                // the references normalizeQuad registered and, if the quad was removed, its own. Blank nodes are
+                // left to _releaseBlanks, other quads may still use them
                 that.lexicon.unregister(quad, key, function () {
-                    if (found) that.callbacksBackend.nextGraphModification(Callbacks["deleted"], [quad, normalized]);
-                    k();
+                    if (!found) return k();
+                    that.lexicon.release(quad, key, function () {
+                        that.callbacksBackend.nextGraphModification(Callbacks["deleted"], [quad, normalized]);
+                        k();
+                    });
                 });
             } else {
                 k();
@@ -2248,9 +2276,7 @@ QueryEngine.prototype._executeClearGraph = function (destinyGraph, queryEnv, cal
                                                     k();
                                                 });
                                             } else {
-                                                foundErrorDeleting = new Error(
-                                                    "Cannot find graph " + graph + " to clear it",
-                                                );
+                                                // its last quad took the IRI, and the known graph, out of the lexicon
                                                 k();
                                             }
                                         });
